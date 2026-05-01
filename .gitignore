@@ -1,0 +1,14 @@
+# .gitignore
+
+# Ignore the virtual environment
+venv/
+
+# Ignore the secrets file! (CRITICAL)
+.env
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore data exports and sample data (optional, but good practice)
+exports/
