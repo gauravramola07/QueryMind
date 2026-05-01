@@ -78,9 +78,10 @@ def load_css():
     .css-1d391kg { display: none !important; }
 
     /* Main Container Padding */
+    /* Change from 2rem to 0rem for the first value */
     .main .block-container {
         max-width: 1200px;
-        padding: 2rem 2rem 2rem;
+        padding: 0.5rem 2rem 2rem; /* Reduced top padding */
         position: relative;
         z-index: 1;
     }
@@ -99,9 +100,10 @@ def load_css():
     }
 
     /* ── Hero Section (Logo & Title) ── */
+    /* Change from 2.5rem to 0.5rem */
     .hero-section {
         text-align: center;
-        padding: 2.5rem 0 1rem;
+        padding: 0.5rem 0 1rem; /* Tightened top space */
         position: relative;
     }
     .hero-logo {
