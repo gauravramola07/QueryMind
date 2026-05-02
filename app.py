@@ -13,7 +13,7 @@ import numpy as np
 from datetime import datetime
 
 # 2. Now import local components
-from components.data_cleaner import auto_clean_data
+from components.data_cleaner import auto_clean_data, generate_cleaning_report
 from utils.kpi_detector import get_all_kpis
 
 import config
@@ -1446,28 +1446,19 @@ def render_settings_tab():
 def render_refinement_tab():
     st.markdown("<p class='section-title'>✨ AI Data Refinement & Healing</p>", unsafe_allow_html=True)
 
-    df = st.session_state.df
-    fi = st.session_state.file_info
-    health = get_data_health_score(df, fi)
+    df  = st.session_state.df
+    fi  = st.session_state.file_info
+    health           = get_data_health_score(df, fi)
     cleaning_applied = st.session_state.get('cleaning_applied', False)
 
+    # ── Left column: health grade display ──
     c1, c2 = st.columns([2, 1])
     with c1:
         if cleaning_applied:
-            # ── FIX 2: Recompute grade EXCLUDING 'size' after cleaning ──
-            # Size cannot be improved by cleaning (no rows are added),
-            # so it is unfair to penalise data quality grade for it.
+            # Recompute grade excluding 'size' — cleaning cannot add rows
             adjustable = {k: v for k, v in health['breakdown'].items() if k != 'size'}
-            adj_avg = sum(adjustable.values()) / len(adjustable) if adjustable else health['score']
-
-            if adj_avg >= 90:
-                adj_grade = 'A'
-            elif adj_avg >= 75:
-                adj_grade = 'B'
-            elif adj_avg >= 60:
-                adj_grade = 'C'
-            else:
-                adj_grade = 'D'
+            adj_avg    = sum(adjustable.values()) / len(adjustable) if adjustable else health['score']
+            adj_grade  = 'A' if adj_avg >= 90 else 'B' if adj_avg >= 75 else 'C' if adj_avg >= 60 else 'D'
 
             st.markdown(f"### Current Data Health: {adj_grade}")
             st.success("✅ Smart Cleaning Applied — data quality improved.")
@@ -1480,78 +1471,244 @@ def render_refinement_tab():
         else:
             st.markdown(f"### Current Data Health: {health['grade']}")
             if health['breakdown'].get('size', 100) < 30:
-                st.info("💡 Note: Grade is limited by the small 'Size' of this test file (9 records).")
+                st.info("💡 Note: Grade is limited by the small 'Size' of this test file.")
             for issue, score in health['breakdown'].items():
                 st.write(f"- **{issue.title()}**: {score}/100")
 
+    # ── Right column: action buttons ──
     with c2:
         st.markdown("#### 🪄 AI Quick Fix")
-        if st.button("Apply Smart Cleaning", key="clean_btn", use_container_width=True):
 
-            _rerun = False  # ← Flag controls rerun OUTSIDE the spinner
-
+        # ── Apply Smart Cleaning button ──
+        if st.button("✨ Apply Smart Cleaning", key="clean_btn", use_container_width=True):
+            _rerun = False
+            with st.spinner("Neural Engine healing your dataset..."):
+                if st.button("✨ Apply Smart Cleaning", key="clean_btn", use_container_width=True):
+            _rerun = False
             with st.spinner("Neural Engine healing your dataset..."):
                 try:
-                    # 1. Run the cleaner
+                    # ── SNAPSHOT before state for the report ──
+                    df_snapshot = st.session_state.df.copy()
+
                     cleaned_df = auto_clean_data(st.session_state.df)
 
-                    # 2. Rebuild file_info from actual cleaned data (not hardcoded)
+                    # ── Generate the before/after report immediately ──
+                    st.session_state.cleaning_report = generate_cleaning_report(
+                        df_snapshot, cleaned_df
+                    )
+
+                    # ... rest of your existing state sync code ...
                     new_fi = fi.copy()
-                    new_fi['num_rows'] = len(cleaned_df)
+                    # etc.
+                try:
+                    cleaned_df = auto_clean_data(st.session_state.df)
+
+                    new_fi = fi.copy()
+                    new_fi['num_rows']          = len(cleaned_df)
                     new_fi['has_missing_values'] = bool(cleaned_df.isnull().any().any())
-                    new_fi['missing_info'] = {}  # Wipe stale missing logs
+                    new_fi['missing_info']       = {}
 
                     new_fi['column_details'] = []
                     for col in cleaned_df.columns:
                         null_count = int(cleaned_df[col].isnull().sum())
                         new_fi['column_details'].append({
-                            'name': col,
-                            'type': str(cleaned_df[col].dtype),
+                            'name':          col,
+                            'type':          str(cleaned_df[col].dtype),
                             'non_null_count': int(cleaned_df[col].count()),
-                            'null_count': null_count,
-                            'unique_count': int(cleaned_df[col].nunique()),
-                            'percentage': round(null_count / len(cleaned_df) * 100, 2) if len(cleaned_df) else 0.0
+                            'null_count':    null_count,
+                            'unique_count':  int(cleaned_df[col].nunique()),
+                            'percentage':    round(null_count / len(cleaned_df) * 100, 2) if len(cleaned_df) else 0.0
                         })
 
-                    # 3. Sync all session state
-                    st.session_state.df = cleaned_df
-                    st.session_state.file_info = new_fi
+                    st.session_state.df               = cleaned_df
+                    st.session_state.file_info        = new_fi
                     st.session_state.column_categories = detect_column_categories(cleaned_df)
-                    st.session_state.schema = generate_smart_schema(
+                    st.session_state.schema           = generate_smart_schema(
                         cleaned_df, new_fi, st.session_state.column_categories
                     )
-                    # ── FIX 3: Refresh KPIs so top cards reflect cleaned data ──
-                    st.session_state.kpis = get_all_kpis(cleaned_df, new_fi)['kpis']
-                    st.session_state.cleaning_applied = True
-                    st.session_state.cleaning_applied = True
+                    st.session_state.kpis             = get_all_kpis(cleaned_df, new_fi)['kpis']
+                    st.session_state.cleaning_applied  = True
+                    st.session_state.data_summary      = None   # force fresh AI summary
+                    generate_ai_summary()                        # rewrite from clean data
 
-                    # ── FIX: Wipe stale summary and regenerate from fresh schema + kpis ──
-                    st.session_state.data_summary = None   # clears the old "2 missing values" text
-                    generate_ai_summary()                   # rewrites it using the updated schema & kpis
-
-                    # ── FIX 3: Wipe stale AI summary so Overview regenerates it ──
-                    # The old summary was written from dirty data and tells the LLM
-                    # "there are missing values" — causing wrong chat responses.
-                    st.session_state.data_summary = None
-                    st.session_state.suggestions = generate_smart_suggestions(
-                        cleaned_df, new_fi, st.session_state.column_categories
-                    )
-
-                    # 4. Sync the SQL database
                     reset_database()
                     load_dataframe_to_db(cleaned_df)
 
                     st.success("🎉 Data Healed! Refreshing...")
-                    _rerun = True  # ← Signal rerun, don't call it yet
+                    _rerun = True
 
                 except Exception as e:
                     st.error(f"❌ Cleaning failed: {e}")
 
-            # ── FIX 1: st.rerun() OUTSIDE the spinner context ──
-            # Calling st.rerun() inside `with st.spinner()` raises RerunException
-            # which the spinner's __exit__ silently swallows, killing the rerun.
+            # st.rerun() MUST be outside the spinner context
             if _rerun:
                 st.rerun()
+
+        # ── Download button — only shown after cleaning is applied ──
+        if cleaning_applied:
+            st.markdown("<br>", unsafe_allow_html=True)   # breathing room between buttons
+
+            original_name = st.session_state.get('current_file_name', 'data')
+            # Strip the original extension and append _cleaned.csv
+            base_name     = original_name.rsplit('.', 1)[0]
+            download_name = f"{base_name}_cleaned.csv"
+
+            csv_bytes = df.to_csv(index=False).encode('utf-8')
+
+            st.download_button(
+                label="📥 Download Cleaned CSV",
+                data=csv_bytes,
+                file_name=download_name,
+                mime="text/csv",
+                use_container_width=True,
+                key="download_cleaned_csv",
+                help=f"Downloads the cleaned dataset as '{download_name}'"
+            )
+
+            # Show a compact stat line so user knows what they're downloading
+            rows, cols = df.shape
+            nulls      = int(df.isnull().sum().sum())
+            null_label = f"{nulls} null(s) remain" if nulls > 0 else "0 nulls"
+            st.caption(f"{rows:,} rows · {cols} columns · {null_label}")
+
+        # ── Before/After Cleaning Report ──
+    report = st.session_state.get('cleaning_report')
+    if cleaning_applied and report:
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<p class='section-title'>📋 Before / After Cleaning Report</p>",
+                    unsafe_allow_html=True)
+
+        # ── Summary metric strip ──
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            st.markdown(f"""
+            <div class='kpi-premium c1' style='padding:1rem;'>
+                <p class='kpi-val'>{report['total_nulls_filled']}</p>
+                <p class='kpi-lbl'>Nulls Filled</p>
+            </div>""", unsafe_allow_html=True)
+        with m2:
+            st.markdown(f"""
+            <div class='kpi-premium c2' style='padding:1rem;'>
+                <p class='kpi-val'>{report['duplicates_removed']}</p>
+                <p class='kpi-lbl'>Duplicates Removed</p>
+            </div>""", unsafe_allow_html=True)
+        with m3:
+            st.markdown(f"""
+            <div class='kpi-premium c3' style='padding:1rem;'>
+                <p class='kpi-val'>{report['columns_changed']}</p>
+                <p class='kpi-lbl'>Columns Changed</p>
+            </div>""", unsafe_allow_html=True)
+        with m4:
+            st.markdown(f"""
+            <div class='kpi-premium c4' style='padding:1rem;'>
+                <p class='kpi-val'>{report['rows_after']:,}</p>
+                <p class='kpi-lbl'>Rows After Clean</p>
+            </div>""", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── Per-column detail table ──
+        # Build HTML rows with green highlight for changed columns
+        rows_html = ""
+        for col in report['columns']:
+            # Row background: subtle green tint if changed, default if not
+            row_style = (
+                "background: rgba(72, 187, 120, 0.08);"
+                if col['changed'] else ""
+            )
+
+            # Nulls cell: show delta in green if nulls were filled
+            if col['nulls_filled'] > 0:
+                nulls_cell = (
+                    f"{col['nulls_before']} → "
+                    f"<span style='color:#48bb78;font-weight:600;'>"
+                    f"{col['nulls_after']}"
+                    f"</span>"
+                    f" <span style='color:#48bb78;font-size:0.8rem;'>"
+                    f"(−{col['nulls_filled']})</span>"
+                )
+            else:
+                nulls_cell = str(col['nulls_before'])
+
+            # Type cell: highlight if changed
+            if col['dtype_before'] != col['dtype_after']:
+                type_cell = (
+                    f"<span style='color:rgba(255,255,255,0.4);'>{col['dtype_before']}</span>"
+                    f" → "
+                    f"<span style='color:#a78bfa;font-weight:600;'>{col['dtype_after']}</span>"
+                )
+            else:
+                type_cell = col['dtype_before']
+
+            # Unique values cell
+            unique_cell = (
+                f"{col['unique_before']} → {col['unique_after']}"
+                if col['unique_before'] != col['unique_after']
+                else str(col['unique_before'])
+            )
+
+            # Actions: join into badge-style chips
+            if col['actions']:
+                action_chips = " ".join(
+                    f"<span style='"
+                    f"background:rgba(72,187,120,0.15);"
+                    f"color:#48bb78;"
+                    f"border:1px solid rgba(72,187,120,0.3);"
+                    f"border-radius:20px;"
+                    f"padding:2px 10px;"
+                    f"font-size:0.78rem;"
+                    f"white-space:nowrap;"
+                    f"display:inline-block;"
+                    f"margin:2px 0;"
+                    f"'>{a}</span>"
+                    for a in col['actions']
+                )
+            else:
+                action_chips = (
+                    "<span style='"
+                    "color:rgba(255,255,255,0.25);"
+                    "font-size:0.85rem;"
+                    "font-style:italic;'>"
+                    "No changes</span>"
+                )
+
+            rows_html += f"""
+            <tr style='{row_style}'>
+                <td style='font-weight:600;color:#f7fafc;'>{col['name']}</td>
+                <td>{type_cell}</td>
+                <td>{nulls_cell}</td>
+                <td>{unique_cell}</td>
+                <td style='line-height:1.8;'>{action_chips}</td>
+            </tr>
+            """
+
+        table_html = f"""
+        <div style='overflow-x:auto; margin-bottom:1.5rem;'>
+        <table class='glass-table' style='min-width:700px;'>
+            <thead>
+                <tr>
+                    <th>Column</th>
+                    <th>Data Type</th>
+                    <th>Nulls (before → after)</th>
+                    <th>Unique Values</th>
+                    <th>Actions Taken</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
+        </div>
+        """
+        st.markdown(table_html, unsafe_allow_html=True)
+
+        # ── Row-level summary footnote ──
+        st.caption(
+            f"Dataset: {report['rows_before']:,} rows before → "
+            f"{report['rows_after']:,} rows after "
+            f"({report['duplicates_removed']} duplicate row(s) removed)."
+        )
 # ─────────────────────────────────────────────
 # RESET
 # ─────────────────────────────────────────────

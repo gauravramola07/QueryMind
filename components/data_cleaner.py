@@ -56,3 +56,87 @@ def auto_clean_data(df):
                 pass
 
     return new_df
+
+def generate_cleaning_report(df_before, df_after):
+    """
+    Compare df_before and df_after column by column and return a
+    structured dict describing exactly what changed during cleaning.
+    """
+    rows_before = len(df_before)
+    rows_after  = len(df_after)
+
+    total_nulls_before = int(df_before.isnull().sum().sum())
+    total_nulls_after  = int(df_after.isnull().sum().sum())
+
+    columns = []
+    for col in df_before.columns:
+        if col not in df_after.columns:
+            continue
+
+        before_series = df_before[col]
+        after_series  = df_after[col]
+
+        nulls_before  = int(before_series.isnull().sum())
+        nulls_after   = int(after_series.isnull().sum())
+        nulls_filled  = max(0, nulls_before - nulls_after)
+
+        dtype_before  = str(before_series.dtype)
+        dtype_after   = str(after_series.dtype)
+
+        unique_before = int(before_series.nunique(dropna=True))
+        unique_after  = int(after_series.nunique(dropna=True))
+
+        # Build a plain-English list of actions that were taken on this column
+        actions = []
+
+        if nulls_filled > 0:
+            if np.issubdtype(after_series.dtype, np.number):
+                median_val = round(after_series.median(), 2)
+                actions.append(f"Filled {nulls_filled} null(s) with median ({median_val})")
+            else:
+                actions.append(f"Filled {nulls_filled} null(s) with 'Unknown'")
+
+        if dtype_before != dtype_after:
+            actions.append(f"Type converted: {dtype_before} → {dtype_after}")
+
+        # Detect if negatives were corrected (abs applied)
+        if np.issubdtype(before_series.dtype, np.number):
+            had_negatives = bool((before_series.dropna() < 0).any())
+            has_negatives = bool((after_series.dropna() < 0).any())
+            if had_negatives and not has_negatives:
+                neg_count = int((before_series.dropna() < 0).sum())
+                actions.append(f"Fixed {neg_count} negative value(s)")
+
+        # Detect string standardisation (whitespace stripped)
+        if dtype_before == 'object' and dtype_after == 'object':
+            stripped = before_series.dropna().astype(str).str.strip()
+            if not stripped.equals(before_series.dropna().astype(str)):
+                actions.append("Stripped whitespace")
+
+        # Detect duplicate rows removed — reported at row level, shown per first column
+        changed = bool(actions) or (dtype_before != dtype_after)
+
+        columns.append({
+            'name':          col,
+            'dtype_before':  dtype_before,
+            'dtype_after':   dtype_after,
+            'nulls_before':  nulls_before,
+            'nulls_after':   nulls_after,
+            'nulls_filled':  nulls_filled,
+            'unique_before': unique_before,
+            'unique_after':  unique_after,
+            'actions':       actions,
+            'changed':       changed,
+        })
+
+    return {
+        'rows_before':        rows_before,
+        'rows_after':         rows_after,
+        'duplicates_removed': max(0, rows_before - rows_after),
+        'total_nulls_before': total_nulls_before,
+        'total_nulls_after':  total_nulls_after,
+        'total_nulls_filled': max(0, total_nulls_before - total_nulls_after),
+        'columns_changed':    sum(1 for c in columns if c['changed']),
+        'columns_unchanged':  sum(1 for c in columns if not c['changed']),
+        'columns':            columns,
+    }
