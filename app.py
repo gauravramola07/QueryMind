@@ -480,37 +480,43 @@ def load_css():
         background: linear-gradient(135deg, #764ba2, #667eea) !important;
     }
     
-    /* ── High-Specificity Toggle Override ── */
+    /* ── The Ironclad AI Toggle ── */
     
-    /* 1. Target the label and container */
-    [data-testid="stToggle"] label {
-        background: rgba(255, 255, 255, 0.05) !important;
-        padding: 10px 15px !important;
-        border-radius: 12px !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    /* 1. Target the overall container to add a premium border */
+    [data-testid="stToggle"] {
+        padding: 10px !important;
+        border-radius: 15px !important;
+        background: rgba(255, 255, 255, 0.02) !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
     }
 
-    /* 2. Target the toggle track (The background) */
+    /* 2. Target the label text specifically */
+    [data-testid="stToggle"] p {
+        font-weight: 700 !important;
+        color: white !important;
+        font-size: 1.1rem !important;
+    }
+
+    /* 3. The "Switch" container - forcing the background to NEVER be red */
     [data-testid="stToggle"] div[role="switch"] {
-        background-color: rgba(255, 255, 255, 0.2) !important;
+        height: 1.5rem !important;
+        width: 2.8rem !important;
+        background-color: rgba(255, 255, 255, 0.1) !important; /* Default OFF color */
     }
 
-    /* 3. Target the track when it is ON (Removes the red) */
-    [data-testid="stToggle"] div[aria-checked="true"] {
+    /* 4. Target the ACTIVE state - Using multiple selectors to "win" the CSS war */
+    [data-testid="stToggle"] div[aria-checked="true"],
+    [data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
         background: linear-gradient(135deg, #667eea, #764ba2) !important;
-        box-shadow: 0 0 10px rgba(102, 126, 234, 0.5) !important;
+        background-color: transparent !important; /* Kills the red layer underneath */
+        box-shadow: 0 0 15px rgba(102, 126, 234, 0.6) !important;
     }
 
-    /* 4. Target the knob (The white circle) */
+    /* 5. Target the moving knob - making it larger and cleaner */
     [data-testid="stToggle"] div[role="switch"] > div {
         background-color: white !important;
-    }
-
-    /* 5. Target the text next to the toggle */
-    [data-testid="stToggle"] p {
-        color: white !important;
-        font-weight: 600 !important;
-        margin-left: 10px !important;
+        border: none !important;
+        transform: scale(0.9) !important;
     }
     </style>
     """, unsafe_allow_html=True)
