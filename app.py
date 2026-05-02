@@ -903,11 +903,12 @@ def render_dashboard():
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Define all 6 tabs in the new requested order
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "📊 Data Overview",
         "📈 Visual Analytics",
         "🔍 Data Preview",
         "📋 Schema Info",
+        "✨ AI Refinement",
         "💬 Chat & Analysis",  # <--- Moved to second-to-last
         "⚙️ Settings"
     ])
@@ -922,8 +923,10 @@ def render_dashboard():
     with tab4:
         render_schema_tab()
     with tab5:
-        render_chat_section()   # <--- Renders the chat here now
+        render_refinement_tab()
     with tab6:
+        render_chat_section()   # <--- Renders the chat here now
+    with tab7:
         render_settings_tab()
 
 
@@ -1380,6 +1383,45 @@ def render_settings_tab():
                 generate_ai_summary()
                 st.rerun()
 
+def render_refinement_tab():
+    st.markdown("<p class='section-title'>✨ AI Data Refinement & Healing</p>", unsafe_allow_html=True)
+    
+    df = st.session_state.df
+    health = get_data_health_score(df, st.session_state.file_info) # cite: 1
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown(f"#### 🏥 Health Report: {health['grade']}")
+        if health['grade'] in ['C', 'D']:
+            st.warning("🚨 Your data has significant quality issues that might mislead AI analysis.")
+        else:
+            st.success("✅ Your data is relatively clean and ready for analysis.")
+            
+        st.write("AI suggested improvements:")
+        # Display the suggestions from the health breakdown
+        for issue in health['breakdown']:
+            st.write(f"- Fix {issue}: Current score {health['breakdown'][issue]}/100")
+
+    with col2:
+        st.markdown("#### 🛠️ AI Quick Fix")
+        if st.button("🪄 Apply Smart Cleaning", use_container_width=True):
+            with st.spinner("AI is healing your dataset..."):
+                # Apply the cleaning logic
+                from components.data_cleaner import auto_clean_data
+                cleaned_df = auto_clean_data(df)
+                
+                # Update Session State[cite: 1]
+                st.session_state.df = cleaned_df
+                reset_database() # cite: 1
+                load_dataframe_to_db(cleaned_df) # cite: 1
+                
+                st.success("Successfully cleaned! Database updated.")
+                st.rerun()
+        
+        # Download Cleaned CSV
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Export Cleaned Dataset", csv, "cleaned_data.csv", "text/csv", use_container_width=True)
 
 # ─────────────────────────────────────────────
 # RESET
