@@ -1387,12 +1387,12 @@ def render_settings_tab():
 def render_refinement_tab():
     st.markdown("<p class='section-title'>✨ AI Data Refinement & Healing</p>", unsafe_allow_html=True)
     
-    # We always use the LATEST version of the dataframe from session state
+    # Use current session state data
     df = st.session_state.df
     fi = st.session_state.file_info
     
-    # Calculate health based on the current state of the data
-    health = get_data_health_score(df, fi)[cite: 1]
+    # CORRECTED LINE: Removed the citation tag
+    health = get_data_health_score(df, fi) 
     
     c1, c2 = st.columns([2, 1])
     with c1:
@@ -1405,7 +1405,7 @@ def render_refinement_tab():
         for issue, score in health['breakdown'].items():
             st.write(f"- **{issue.title()}**: {score}/100")
         
-        st.info("Note: 'Size' score remains low if your file has very few rows (like the test file).")
+        st.info("Note: 'Size' score remains low if your file has very few rows.")
 
     with c2:
         st.markdown("#### 🪄 AI Quick Fix")
@@ -1416,31 +1416,30 @@ def render_refinement_tab():
                 from utils.kpi_detector import get_all_kpis
 
                 # 1. Clean the Data
-                cleaned_df = auto_clean_data(st.session_state.df)[cite: 1]
+                cleaned_df = auto_clean_data(st.session_state.df)
                 
-                # 2. FORCE REFRESH METADATA (This is the fix!)
+                # 2. Force Refresh Metadata
                 new_fi = fi.copy()
                 new_fi['num_rows'] = len(cleaned_df)
                 new_fi['has_missing_values'] = cleaned_df.isna().any().any()
                 
-                # Re-detect categories and schema for the cleaned data
-                new_cats = detect_column_categories(cleaned_df)[cite: 1]
-                new_schema = generate_smart_schema(cleaned_df, new_fi, new_cats)[cite: 1]
-                new_kpis = get_all_kpis(cleaned_df, new_fi)[cite: 1]
+                new_cats = detect_column_categories(cleaned_df)
+                new_schema = generate_smart_schema(cleaned_df, new_fi, new_cats)
+                new_kpis = get_all_kpis(cleaned_df, new_fi)
 
-                # 3. Save everything back to Session State
+                # 3. Update Session State
                 st.session_state.df = cleaned_df
                 st.session_state.file_info = new_fi
                 st.session_state.schema = new_schema
                 st.session_state.column_categories = new_cats
                 st.session_state.kpis = new_kpis['kpis']
                 
-                # 4. Re-sync the SQL Database so the Chat uses clean data[cite: 1]
+                # 4. Sync Database
                 reset_database()
                 load_dataframe_to_db(cleaned_df)
                 
                 st.success("Dataset successfully healed!")
-                st.rerun() # Force the entire page to redraw with new 'A' stats[cite: 1]
+                st.rerun()
 
 # ─────────────────────────────────────────────
 # RESET
