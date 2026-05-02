@@ -479,6 +479,45 @@ def load_css():
         box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6) !important;
         background: linear-gradient(135deg, #764ba2, #667eea) !important;
     }
+    
+    /* ── Futuristic Toggle (AI Activation) ── */
+    
+    /* The container and label */
+    div[data-testid="stToggle"] {
+        background: rgba(255, 255, 255, 0.03) !important;
+        padding: 12px 20px !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        transition: all 0.3s ease !important;
+    }
+
+    /* Label text styling */
+    div[data-testid="stToggle"] label p {
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        letter-spacing: 0.8px !important;
+        color: rgba(255, 255, 255, 0.8) !important;
+        margin-left: 10px !important;
+    }
+
+    /* The switch track when OFF */
+    div[data-testid="stToggle"] div[role="switch"] {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    }
+
+    /* The switch track when ON (Gradient + Glow) */
+    div[data-testid="stToggle"] div[aria-checked="true"] {
+        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        box-shadow: 0 0 15px rgba(102, 126, 234, 0.6) !important;
+        border: none !important;
+    }
+
+    /* The moving handle/knob */
+    div[data-testid="stToggle"] div[role="switch"] div {
+        background-color: #ffffff !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
