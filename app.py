@@ -518,6 +518,28 @@ def load_css():
         border: none !important;
         transform: scale(0.9) !important;
     }
+                
+    /* ── Premium AI Activation Button ── */
+    .stButton > button[key="activate_ai"] {
+        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        color: white !important;
+        border: none !important;
+        padding: 1.2rem !important;
+        font-weight: 800 !important;
+        font-size: 1.2rem !important;
+        letter-spacing: 2px !important;
+        border-radius: 15px !important;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+        transition: all 0.4s ease !important;
+        width: 100% !important;
+        text-transform: uppercase !important;
+    }
+
+    .stButton > button[key="activate_ai"]:hover {
+        transform: translateY(-3px) scale(1.02) !important;
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6) !important;
+        background: linear-gradient(135deg, #764ba2, #667eea) !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -926,24 +948,32 @@ def render_kpi_row():
 # ─────────────────────────────────────────────
 # CHAT SECTION
 # ─────────────────────────────────────────────
-
 def render_chat_section():
     st.markdown("<p class='section-title'>💬 Ask Questions About Your Data</p>", unsafe_allow_html=True)
 
-    chat_open = st.toggle("🤖 Open Chat Assistant", value=st.session_state.show_chat, key="chat_toggle")
-    st.session_state.show_chat = chat_open
-
-    if not chat_open:
+    # ── CASE 1: AI ENGINE IS OFFLINE (Show Activation Screen) ──
+    if not st.session_state.show_chat:
         st.markdown("""
-        <div class='glass-card' style='text-align:center;'>
-            <p style='color:rgba(255,255,255,0.5) !important;'>
-                Toggle the chat assistant above to start asking questions 🚀
+        <div class='glass-card' style='text-align:center; padding: 3rem; border: 1px dashed rgba(102,126,234,0.3);'>
+            <div style='font-size: 4.5rem; margin-bottom: 1rem; filter: drop-shadow(0 0 15px rgba(102,126,234,0.4));'>🤖</div>
+            <h2 style='margin-bottom: 0.5rem; background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>
+                Neural Engine Offline
+            </h2>
+            <p style='color:rgba(255,255,255,0.5) !important; margin-bottom: 2rem; font-size: 1rem;'>
+                Activate the QueryMind AI Assistant to start natural language discovery and automated insights.
             </p>
         </div>
         """, unsafe_allow_html=True)
+        
+        # This button uses the special 'activate_ai' key for our premium CSS styling
+        if st.button("🚀 ACTIVATE AI NEURAL ENGINE", key="activate_ai", use_container_width=True):
+            st.session_state.show_chat = True
+            st.rerun()
 
+        # Show quick suggestions even when offline to encourage the user
         sugs = st.session_state.suggestions
         if sugs:
+            st.markdown("<br>", unsafe_allow_html=True)
             cols = st.columns(2)
             for i, s in enumerate(sugs[:4]):
                 with cols[i % 2]:
@@ -953,12 +983,21 @@ def render_chat_section():
                         st.rerun()
         return
 
-    # Chat open
+    # ── CASE 2: AI ENGINE IS ONLINE (Show Chat Interface) ──
+    
+    # Small Deactivate button at the top to go back
+    c1, c2 = st.columns([5, 1])
+    with c2:
+        if st.button("❌ CLOSE CHAT", use_container_width=True):
+            st.session_state.show_chat = False
+            st.rerun()
+
     if not st.session_state.chat_history:
         st.markdown("""
         <div class='chat-bot-msg'>
             <strong>🤖 QueryMind:</strong><br><br>
-            Hello! I've analyzed your dataset. Ask me any question in plain English!
+            Neural Engine is online. I've analyzed your dataset and I'm ready to help. 
+            Ask me any question in plain English!
         </div>
         """, unsafe_allow_html=True)
     else:
@@ -971,7 +1010,7 @@ def render_chat_section():
 
             with st.container():
                 if st.session_state.show_sql and msg.get('sql_query'):
-                    with st.expander("🔍 SQL", expanded=False):
+                    with st.expander("🔍 SQL Generated", expanded=False):
                         st.code(msg['sql_query'], language='sql')
 
                 if msg.get('explanation'):
@@ -982,9 +1021,8 @@ def render_chat_section():
                     """, unsafe_allow_html=True)
 
                 if msg.get('result_df') is not None and not msg['result_df'].empty:
-                    st.caption(f"📊 {len(msg['result_df'])} rows")
+                    st.caption(f"📊 Query Result: {len(msg['result_df'])} rows")
                     
-                    # Apply the glassmorphic HTML table style to chat results
                     df_to_show = format_dataframe_for_display(msg['result_df'], 10)
                     html_table = df_to_show.to_html(index=False, classes="glass-table")
                     st.markdown(f'<div style="overflow-x: auto; padding-bottom: 10px;">{html_table}</div>', unsafe_allow_html=True)
@@ -993,15 +1031,15 @@ def render_chat_section():
                     st.plotly_chart(msg['figure'], use_container_width=True, key=f"chart_{i}")
 
                 if msg.get('insight'):
-                    with st.expander("💡 AI Insight", expanded=True):
+                    with st.expander("💡 AI Strategic Insight", expanded=True):
                         st.markdown(msg['insight'])
 
             st.divider()
 
-    # Suggestions
+    # Suggestions (Internal)
     sugs = st.session_state.suggestions
     if sugs:
-        st.markdown("<p class='section-title'>💡 Try Asking</p>", unsafe_allow_html=True)
+        st.markdown("<p class='section-title'>💡 Discovery Suggestions</p>", unsafe_allow_html=True)
         cols = st.columns(2)
         for i, s in enumerate(sugs[:6]):
             with cols[i % 2]:
@@ -1009,13 +1047,13 @@ def render_chat_section():
                     process_question(s)
                     st.rerun()
 
-    # Input
+    # Chat Input Form
     st.markdown("<br>", unsafe_allow_html=True)
     with st.form(key='chat_form', clear_on_submit=True):
         col1, col2 = st.columns([6, 1])
         with col1:
             user_input = st.text_input(
-                "Ask", placeholder="Ask anything about your data...",
+                "Ask", placeholder="e.g., What are the total sales by region?",
                 label_visibility="collapsed"
             )
         with col2:
@@ -1024,8 +1062,6 @@ def render_chat_section():
         if submit and user_input:
             process_question(user_input)
             st.rerun()
-        elif submit:
-            st.warning("Please type a question!")
 
 
 # ─────────────────────────────────────────────
