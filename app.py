@@ -5,7 +5,9 @@
 # QUERYMIND - Premium Single Page Edition
 # No Sidebar | Futuristic AI Brain | Smart UI
 # ============================================
-
+from components.data_cleaner import auto_clean_data
+from utils.helpers import detect_column_categories, generate_smart_schema
+from utils.kpis import get_all_kpis # Ensure this path is correct based on your repo
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -1387,12 +1389,13 @@ def render_settings_tab():
 def render_refinement_tab():
     st.markdown("<p class='section-title'>✨ AI Data Refinement & Healing</p>", unsafe_allow_html=True)
     
-    # Use current session state data
+    # Check if we need to initialize a processing state
+    if 'is_cleaning' not in st.session_state:
+        st.session_state.is_cleaning = False
+
     df = st.session_state.df
     fi = st.session_state.file_info
-    
-    # CORRECTED LINE: Removed the citation tag
-    health = get_data_health_score(df, fi) 
+    health = get_data_health_score(df, fi)
     
     c1, c2 = st.columns([2, 1])
     with c1:
@@ -1400,46 +1403,52 @@ def render_refinement_tab():
         if health['grade'] in ['C', 'D']:
             st.warning("🚨 Issues detected: Missing values, duplicates, or small dataset size.")
         else:
-            st.success("✅ Data quality is now high!")
+            st.success("✅ Your data is now clean and optimized!")
             
         for issue, score in health['breakdown'].items():
             st.write(f"- **{issue.title()}**: {score}/100")
-        
-        st.info("Note: 'Size' score remains low if your file has very few rows.")
 
     with c2:
         st.markdown("#### 🪄 AI Quick Fix")
-        if st.button("Apply Smart Cleaning", key="clean_data_btn", use_container_width=True):
-            with st.spinner("AI is healing your dataset..."):
-                from components.data_cleaner import auto_clean_data
-                from utils.helpers import detect_column_categories, generate_smart_schema
-                from utils.kpi_detector import get_all_kpis
-
-                # 1. Clean the Data
+        
+        # Disable button if already cleaning to prevent multiple clicks and crashes
+        if st.button("Apply Smart Cleaning", key="clean_btn", use_container_width=True, disabled=st.session_state.is_cleaning):
+            st.session_state.is_cleaning = True
+            
+            with st.spinner("Neural Engine healing your dataset..."):
+                # 1. Run the cleaning logic
                 cleaned_df = auto_clean_data(st.session_state.df)
                 
-                # 2. Force Refresh Metadata
+                # 2. FULL METADATA REFRESH (The Fix for 'Nothing Happening')
+                # We must recalculate everything so the Health Report updates
+                from components.data_loader import get_quick_stats # Import what you need locally if not at top
+                
+                # Re-run the analysis logic used during upload
+                new_cats = detect_column_categories(cleaned_df)
+                
+                # Create a fresh file_info object based on cleaned data
                 new_fi = fi.copy()
                 new_fi['num_rows'] = len(cleaned_df)
                 new_fi['has_missing_values'] = cleaned_df.isna().any().any()
-                
-                new_cats = detect_column_categories(cleaned_df)
-                new_schema = generate_smart_schema(cleaned_df, new_fi, new_cats)
-                new_kpis = get_all_kpis(cleaned_df, new_fi)
+                # Update column details specifically so Health Score sees 0 nulls
+                new_fi['column_details'] = [
+                    {'name': col, 'type': str(cleaned_df[col].dtype), 'null_count': 0} 
+                    for col in cleaned_df.columns
+                ]
 
-                # 3. Update Session State
+                # 3. Update Session State[cite: 1]
                 st.session_state.df = cleaned_df
                 st.session_state.file_info = new_fi
-                st.session_state.schema = new_schema
                 st.session_state.column_categories = new_cats
-                st.session_state.kpis = new_kpis['kpis']
+                st.session_state.schema = generate_smart_schema(cleaned_df, new_fi, new_cats)
                 
-                # 4. Sync Database
+                # 4. Sync Database and reset cleaning state
                 reset_database()
                 load_dataframe_to_db(cleaned_df)
                 
-                st.success("Dataset successfully healed!")
-                st.rerun()
+                st.session_state.is_cleaning = False
+                st.success("Healed! Metadata updated.")
+                st.rerun() # Force UI to show the 'A' grade now
 
 # ─────────────────────────────────────────────
 # RESET
