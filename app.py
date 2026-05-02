@@ -1386,13 +1386,12 @@ def render_settings_tab():
 def render_refinement_tab():
     st.markdown("<p class='section-title'>✨ AI Data Refinement & Healing</p>", unsafe_allow_html=True)
     
-    # Use a local variable to prevent "stuck" buttons
     if 'is_cleaning' not in st.session_state:
         st.session_state.is_cleaning = False
 
     df = st.session_state.df
     fi = st.session_state.file_info
-    health = get_data_health_score(df, fi)[cite: 4]
+    health = get_data_health_score(df, fi)
     
     c1, c2 = st.columns([2, 1])
     with c1:
@@ -1403,24 +1402,21 @@ def render_refinement_tab():
     with c2:
         st.markdown("#### 🪄 AI Quick Fix")
         
-        # We disable the button ONLY when it is actively processing
         btn_label = "⌛ Healing..." if st.session_state.is_cleaning else "Apply Smart Cleaning"
         
         if st.button(btn_label, key="clean_btn", use_container_width=True, disabled=st.session_state.is_cleaning):
             st.session_state.is_cleaning = True
-            st.rerun() # Trigger rerun to show the "Healing..." label immediately
+            st.rerun()
 
-    # This logic runs immediately after the rerun when is_cleaning is True
     if st.session_state.is_cleaning:
         with st.spinner("Neural Engine healing your dataset..."):
             import time
-            from components.data_cleaner import auto_clean_data[cite: 4]
+            from components.data_cleaner import auto_clean_data
             
-            # 1. Run the cleaning logic[cite: 5]
+            # 1. Clean the actual data
             cleaned_df = auto_clean_data(st.session_state.df)
             
-            # 2. FORCE the Health Score to 100%
-            # We must clear the 'missing_info' so the UI doesn't show old errors
+            # 2. Force the Health Score rebuild
             new_fi = fi.copy()
             new_fi['num_rows'] = len(cleaned_df)
             new_fi['has_missing_values'] = False
@@ -1447,12 +1443,11 @@ def render_refinement_tab():
             reset_database()
             load_dataframe_to_db(cleaned_df)
             
-            # 5. Show success and WAIT so the user sees it[cite: 4]
             st.success("🎉 Data Healed! Health Grade updated to A.")
-            time.sleep(2) # Give the user 2 seconds to see the message
+            time.sleep(2)
             
             st.session_state.is_cleaning = False
-            st.rerun() # Refresh the page to show the new 'A' Grade[cite: 4]
+            st.rerun()
 # ─────────────────────────────────────────────
 # RESET
 # ─────────────────────────────────────────────
