@@ -12,6 +12,10 @@ import os
 import sys
 from datetime import datetime
 
+# Import local components
+from components.data_cleaner import auto_clean_data
+from utils.kpi_detector import get_all_kpis
+
 sys.path.append('.')
 import config
 
@@ -1396,41 +1400,30 @@ def render_refinement_tab():
     c1, c2 = st.columns([2, 1])
     with c1:
         st.markdown(f"### Current Data Health: {health['grade']}")
-        if health['grade'] in ['C', 'D']:
-            st.warning("🚨 Issues detected: Missing values, duplicates, or small dataset size.")
-        else:
-            st.success("✅ Your data is now clean and optimized!")
-            
         for issue, score in health['breakdown'].items():
             st.write(f"- **{issue.title()}**: {score}/100")
 
     with c2:
         st.markdown("#### 🪄 AI Quick Fix")
         
+        # The button is disabled while cleaning to prevent multiple clicks and crashes
         if st.button("Apply Smart Cleaning", key="clean_btn", use_container_width=True, disabled=st.session_state.is_cleaning):
             st.session_state.is_cleaning = True
             
             with st.spinner("Neural Engine healing your dataset..."):
-                # 1. Run cleaning
+                # This is the line that was causing the NameError
                 cleaned_df = auto_clean_data(st.session_state.df)
                 
-                # 2. Refresh Metadata
-                new_cats = detect_column_categories(cleaned_df)
+                # Refresh all metadata
                 new_fi = fi.copy()
                 new_fi['num_rows'] = len(cleaned_df)
                 new_fi['has_missing_values'] = cleaned_df.isna().any().any()
-                new_fi['column_details'] = [
-                    {'name': col, 'type': str(cleaned_df[col].dtype), 'null_count': 0} 
-                    for col in cleaned_df.columns
-                ]
+                new_fi['column_details'] = [{'name': col, 'type': str(cleaned_df[col].dtype), 'null_count': 0} for col in cleaned_df.columns]
 
-                # 3. Update Session State (CLEANED - NO CITATION TAGS)
                 st.session_state.df = cleaned_df
                 st.session_state.file_info = new_fi
-                st.session_state.column_categories = new_cats
-                st.session_state.schema = generate_smart_schema(cleaned_df, new_fi, new_cats)
+                st.session_state.schema = generate_smart_schema(cleaned_df, new_fi, detect_column_categories(cleaned_df))
                 
-                # 4. Sync DB
                 reset_database()
                 load_dataframe_to_db(cleaned_df)
                 
