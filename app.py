@@ -5,9 +5,6 @@
 # QUERYMIND - Premium Single Page Edition
 # No Sidebar | Futuristic AI Brain | Smart UI
 # ============================================
-from components.data_cleaner import auto_clean_data
-from utils.helpers import detect_column_categories, generate_smart_schema
-from utils.kpis import get_all_kpis # Ensure this path is correct based on your repo
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -1389,7 +1386,6 @@ def render_settings_tab():
 def render_refinement_tab():
     st.markdown("<p class='section-title'>✨ AI Data Refinement & Healing</p>", unsafe_allow_html=True)
     
-    # Check if we need to initialize a processing state
     if 'is_cleaning' not in st.session_state:
         st.session_state.is_cleaning = False
 
@@ -1411,45 +1407,36 @@ def render_refinement_tab():
     with c2:
         st.markdown("#### 🪄 AI Quick Fix")
         
-        # Disable button if already cleaning to prevent multiple clicks and crashes
         if st.button("Apply Smart Cleaning", key="clean_btn", use_container_width=True, disabled=st.session_state.is_cleaning):
             st.session_state.is_cleaning = True
             
             with st.spinner("Neural Engine healing your dataset..."):
-                # 1. Run the cleaning logic
+                # 1. Run cleaning
                 cleaned_df = auto_clean_data(st.session_state.df)
                 
-                # 2. FULL METADATA REFRESH (The Fix for 'Nothing Happening')
-                # We must recalculate everything so the Health Report updates
-                from components.data_loader import get_quick_stats # Import what you need locally if not at top
-                
-                # Re-run the analysis logic used during upload
+                # 2. Refresh Metadata
                 new_cats = detect_column_categories(cleaned_df)
-                
-                # Create a fresh file_info object based on cleaned data
                 new_fi = fi.copy()
                 new_fi['num_rows'] = len(cleaned_df)
                 new_fi['has_missing_values'] = cleaned_df.isna().any().any()
-                # Update column details specifically so Health Score sees 0 nulls
                 new_fi['column_details'] = [
                     {'name': col, 'type': str(cleaned_df[col].dtype), 'null_count': 0} 
                     for col in cleaned_df.columns
                 ]
 
-                # 3. Update Session State[cite: 1]
+                # 3. Update Session State (CLEANED - NO CITATION TAGS)
                 st.session_state.df = cleaned_df
                 st.session_state.file_info = new_fi
                 st.session_state.column_categories = new_cats
                 st.session_state.schema = generate_smart_schema(cleaned_df, new_fi, new_cats)
                 
-                # 4. Sync Database and reset cleaning state
+                # 4. Sync DB
                 reset_database()
                 load_dataframe_to_db(cleaned_df)
                 
                 st.session_state.is_cleaning = False
                 st.success("Healed! Metadata updated.")
-                st.rerun() # Force UI to show the 'A' grade now
-
+                st.rerun()
 # ─────────────────────────────────────────────
 # RESET
 # ─────────────────────────────────────────────
