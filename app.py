@@ -1605,99 +1605,44 @@ def render_refinement_tab():
         st.markdown("<br>", unsafe_allow_html=True)
 
         # ── Per-column detail table ──
-        # Build HTML rows with green highlight for changed columns
-        rows_html = ""
+        # Uses pd.DataFrame.to_html() — same pattern as render_preview_tab /
+        # render_schema_tab — avoids deeply-nested f-string HTML that confuses
+        # Streamlit's markdown renderer and causes raw text display.
+        report_rows = []
         for col in report['columns']:
-            # Row background: subtle green tint if changed, default if not
-            row_style = (
-                "background: rgba(72, 187, 120, 0.08);"
-                if col['changed'] else ""
+            nulls_str = (
+                f"{col['nulls_before']} -> {col['nulls_after']} (-{col['nulls_filled']} fixed)"
+                if col['nulls_filled'] > 0
+                else str(col['nulls_before'])
             )
-
-            # Nulls cell: show delta in green if nulls were filled
-            if col['nulls_filled'] > 0:
-                nulls_cell = (
-                    f"{col['nulls_before']} → "
-                    f"<span style='color:#48bb78;font-weight:600;'>"
-                    f"{col['nulls_after']}"
-                    f"</span>"
-                    f" <span style='color:#48bb78;font-size:0.8rem;'>"
-                    f"(−{col['nulls_filled']})</span>"
-                )
-            else:
-                nulls_cell = str(col['nulls_before'])
-
-            # Type cell: highlight if changed
-            if col['dtype_before'] != col['dtype_after']:
-                type_cell = (
-                    f"<span style='color:rgba(255,255,255,0.4);'>{col['dtype_before']}</span>"
-                    f" → "
-                    f"<span style='color:#a78bfa;font-weight:600;'>{col['dtype_after']}</span>"
-                )
-            else:
-                type_cell = col['dtype_before']
-
-            # Unique values cell
-            unique_cell = (
-                f"{col['unique_before']} → {col['unique_after']}"
+            type_str = (
+                f"{col['dtype_before']} -> {col['dtype_after']}"
+                if col['dtype_before'] != col['dtype_after']
+                else col['dtype_before']
+            )
+            unique_str = (
+                f"{col['unique_before']} -> {col['unique_after']}"
                 if col['unique_before'] != col['unique_after']
                 else str(col['unique_before'])
             )
+            action_str  = "  |  ".join(col['actions']) if col['actions'] else "No changes"
+            status_str  = "Yes" if col['changed'] else "-"
 
-            # Actions: join into badge-style chips
-            if col['actions']:
-                action_chips = " ".join(
-                    f"<span style='"
-                    f"background:rgba(72,187,120,0.15);"
-                    f"color:#48bb78;"
-                    f"border:1px solid rgba(72,187,120,0.3);"
-                    f"border-radius:20px;"
-                    f"padding:2px 10px;"
-                    f"font-size:0.78rem;"
-                    f"white-space:nowrap;"
-                    f"display:inline-block;"
-                    f"margin:2px 0;"
-                    f"'>{a}</span>"
-                    for a in col['actions']
-                )
-            else:
-                action_chips = (
-                    "<span style='"
-                    "color:rgba(255,255,255,0.25);"
-                    "font-size:0.85rem;"
-                    "font-style:italic;'>"
-                    "No changes</span>"
-                )
+            report_rows.append({
+                'Column':         col['name'],
+                'Type':           type_str,
+                'Nulls':          nulls_str,
+                'Unique Values':  unique_str,
+                'Actions Taken':  action_str,
+                'Changed':        status_str,
+            })
 
-            rows_html += f"""
-            <tr style='{row_style}'>
-                <td style='font-weight:600;color:#f7fafc;'>{col['name']}</td>
-                <td>{type_cell}</td>
-                <td>{nulls_cell}</td>
-                <td>{unique_cell}</td>
-                <td style='line-height:1.8;'>{action_chips}</td>
-            </tr>
-            """
-
-        table_html = f"""
-        <div style='overflow-x:auto; margin-bottom:1.5rem;'>
-        <table class='glass-table' style='min-width:700px;'>
-            <thead>
-                <tr>
-                    <th>Column</th>
-                    <th>Data Type</th>
-                    <th>Nulls (before → after)</th>
-                    <th>Unique Values</th>
-                    <th>Actions Taken</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rows_html}
-            </tbody>
-        </table>
-        </div>
-        """
-        st.markdown(table_html, unsafe_allow_html=True)
+        report_df  = pd.DataFrame(report_rows)
+        html_table = report_df.to_html(index=False, classes="glass-table")
+        st.markdown(
+            f'<div style="overflow-x: auto; padding-bottom: 10px;">{html_table}</div>',
+            unsafe_allow_html=True
+        )
 
         # ── Row-level summary footnote ──
         st.caption(
