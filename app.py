@@ -1400,14 +1400,15 @@ def render_refinement_tab():
     with c2:
         st.markdown("#### 🪄 AI Quick Fix")
         
+        # The button is disabled while cleaning to prevent multiple clicks and crashes
         if st.button("Apply Smart Cleaning", key="clean_btn", use_container_width=True, disabled=st.session_state.is_cleaning):
             st.session_state.is_cleaning = True
             
             with st.spinner("Neural Engine healing your dataset..."):
-                # 1. Clean the data
+                # 1. Clean the actual data
                 cleaned_df = auto_clean_data(st.session_state.df)
                 
-                # 2. Complete Metadata Rebuild (Fixes the 'Nothing Happening' issue)
+                # 2. Complete Metadata Rebuild (Mandatory for Health Report to update)
                 new_fi = fi.copy()
                 new_fi['num_rows'] = len(cleaned_df)
                 new_fi['has_missing_values'] = False 
@@ -1431,14 +1432,14 @@ def render_refinement_tab():
                     cleaned_df, new_fi, st.session_state.column_categories
                 )
                 
-                # 4. DATABASE SYNC (Crucial for Chat logic)
+                # 4. SYNC DATABASE (Mandatory so the Chat can see the cleaned data)
                 reset_database()
                 load_dataframe_to_db(cleaned_df)
                 
+                # 5. Reset flag and trigger UI refresh
                 st.session_state.is_cleaning = False
                 st.success("Healed! Data health optimized.")
-                st.rerun() # FORCE UI REFRESH TO SHOW NEW GRADE
-
+                st.rerun() # This makes the "nothing happening" go away!
 # ─────────────────────────────────────────────
 # RESET
 # ─────────────────────────────────────────────
