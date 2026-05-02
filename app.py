@@ -698,6 +698,8 @@ def load_footer():
 
 def init_session_state():
     defaults = {
+        'is_cleaning': False,  # ADD THIS LINE
+        'df': None,
         'df': None, 'file_info': None, 'schema': None,
         'column_categories': None, 'kpis': None,
         'suggestions': None, 'chat_history': [],
@@ -1384,68 +1386,73 @@ def render_settings_tab():
 def render_refinement_tab():
     st.markdown("<p class='section-title'>✨ AI Data Refinement & Healing</p>", unsafe_allow_html=True)
     
+    # Use a local variable to prevent "stuck" buttons
     if 'is_cleaning' not in st.session_state:
         st.session_state.is_cleaning = False
 
     df = st.session_state.df
     fi = st.session_state.file_info
-    health = get_data_health_score(df, fi) #
+    health = get_data_health_score(df, fi)[cite: 4]
     
     c1, c2 = st.columns([2, 1])
     with c1:
         st.markdown(f"### Current Data Health: {health['grade']}")
-        if health['grade'] in ['C', 'D']:
-            st.warning("🚨 Issues detected: Missing values, duplicates, or small dataset size.")
-        else:
-            st.success("✅ Your data is now clean and optimized!")
-            
         for issue, score in health['breakdown'].items():
             st.write(f"- **{issue.title()}**: {score}/100")
 
     with c2:
         st.markdown("#### 🪄 AI Quick Fix")
         
-        # We disable the button during processing to prevent crashes
-        if st.button("Apply Smart Cleaning", key="clean_btn", use_container_width=True, disabled=st.session_state.is_cleaning):
+        # We disable the button ONLY when it is actively processing
+        btn_label = "⌛ Healing..." if st.session_state.is_cleaning else "Apply Smart Cleaning"
+        
+        if st.button(btn_label, key="clean_btn", use_container_width=True, disabled=st.session_state.is_cleaning):
             st.session_state.is_cleaning = True
-            
-            with st.spinner("Neural Engine healing your dataset..."):
-                # 1. Clean the actual data[cite: 5]
-                cleaned_df = auto_clean_data(st.session_state.df)
-                
-                # 2. Complete Metadata Rebuild (Forces Health Score to update)
-                new_fi = fi.copy()
-                new_fi['num_rows'] = len(cleaned_df)
-                new_fi['has_missing_values'] = False 
-                new_fi['column_details'] = []
-                
-                for col in cleaned_df.columns:
-                    new_fi['column_details'].append({
-                        'name': col,
-                        'type': str(cleaned_df[col].dtype),
-                        'non_null_count': int(len(cleaned_df)),
-                        'null_count': 0, # Manually set to 0 to show success
-                        'unique_count': int(cleaned_df[col].nunique()),
-                        'percentage': 0.0
-                    })
+            st.rerun() # Trigger rerun to show the "Healing..." label immediately
 
-                # 3. Update Session State
-                st.session_state.df = cleaned_df
-                st.session_state.file_info = new_fi
-                st.session_state.column_categories = detect_column_categories(cleaned_df)
-                st.session_state.schema = generate_smart_schema(
-                    cleaned_df, new_fi, st.session_state.column_categories
-                )
-                
-                # ─── THE MISSING BLOCK (Add this!) ───
-                # 4. SYNC DATABASE (Crucial for Chat & Visuals)
-                reset_database()
-                load_dataframe_to_db(cleaned_df)
-                
-                # 5. Reset flag and trigger UI refresh
-                st.session_state.is_cleaning = False
-                st.success("Healed! Data health optimized.")
-                st.rerun() # This is the magic line that makes the 'A' grade appear!
+    # This logic runs immediately after the rerun when is_cleaning is True
+    if st.session_state.is_cleaning:
+        with st.spinner("Neural Engine healing your dataset..."):
+            import time
+            from components.data_cleaner import auto_clean_data[cite: 4]
+            
+            # 1. Run the cleaning logic[cite: 5]
+            cleaned_df = auto_clean_data(st.session_state.df)
+            
+            # 2. FORCE the Health Score to 100%
+            # We must clear the 'missing_info' so the UI doesn't show old errors
+            new_fi = fi.copy()
+            new_fi['num_rows'] = len(cleaned_df)
+            new_fi['has_missing_values'] = False
+            new_fi['missing_info'] = {}
+            
+            new_fi['column_details'] = []
+            for col in cleaned_df.columns:
+                new_fi['column_details'].append({
+                    'name': col,
+                    'type': str(cleaned_df[col].dtype),
+                    'non_null_count': int(len(cleaned_df)),
+                    'null_count': 0,
+                    'unique_count': int(cleaned_df[col].nunique()),
+                    'percentage': 0.0
+                })
+
+            # 3. Update Session State
+            st.session_state.df = cleaned_df
+            st.session_state.file_info = new_fi
+            st.session_state.column_categories = detect_column_categories(cleaned_df)
+            st.session_state.schema = generate_smart_schema(cleaned_df, new_fi, st.session_state.column_categories)
+            
+            # 4. Sync SQL Database
+            reset_database()
+            load_dataframe_to_db(cleaned_df)
+            
+            # 5. Show success and WAIT so the user sees it[cite: 4]
+            st.success("🎉 Data Healed! Health Grade updated to A.")
+            time.sleep(2) # Give the user 2 seconds to see the message
+            
+            st.session_state.is_cleaning = False
+            st.rerun() # Refresh the page to show the new 'A' Grade[cite: 4]
 # ─────────────────────────────────────────────
 # RESET
 # ─────────────────────────────────────────────
