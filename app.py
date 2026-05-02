@@ -1387,41 +1387,56 @@ def render_refinement_tab():
     st.markdown("<p class='section-title'>✨ AI Data Refinement & Healing</p>", unsafe_allow_html=True)
     
     df = st.session_state.df
-    health = get_data_health_score(df, st.session_state.file_info) # cite: 1
+    fi = st.session_state.file_info
+    # Calculate health based on current state
+    health = get_data_health_score(df, fi) 
     
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown(f"#### 🏥 Health Report: {health['grade']}")
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        st.markdown(f"### Current Data Health: {health['grade']}")
         if health['grade'] in ['C', 'D']:
-            st.warning("🚨 Your data has significant quality issues that might mislead AI analysis.")
+            st.warning("🚨 Issues detected: Missing values, duplicates, or small dataset size.")
         else:
-            st.success("✅ Your data is relatively clean and ready for analysis.")
+            st.success("✅ Data quality is high.")
             
-        st.write("AI suggested improvements:")
-        # Display the suggestions from the health breakdown
-        for issue in health['breakdown']:
-            st.write(f"- Fix {issue}: Current score {health['breakdown'][issue]}/100")
-
-    with col2:
-        st.markdown("#### 🛠️ AI Quick Fix")
-        if st.button("🪄 Apply Smart Cleaning", use_container_width=True):
-            with st.spinner("AI is healing your dataset..."):
-                # Apply the cleaning logic
-                from components.data_cleaner import auto_clean_data
-                cleaned_df = auto_clean_data(df)
-                
-                # Update Session State[cite: 1]
-                st.session_state.df = cleaned_df
-                reset_database() # cite: 1
-                load_dataframe_to_db(cleaned_df) # cite: 1
-                
-                st.success("Successfully cleaned! Database updated.")
-                st.rerun()
+        for issue, score in health['breakdown'].items():
+            st.write(f"- **{issue.title()}**: {score}/100")
         
-        # Download Cleaned CSV
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Export Cleaned Dataset", csv, "cleaned_data.csv", "text/csv", use_container_width=True)
+        st.info("Note: 'Size' score is low because this test file has very few rows.")
+
+    with c2:
+        st.markdown("#### 🪄 AI Quick Fix")
+        if st.button("Apply Smart Cleaning", key="clean_data_btn", use_container_width=True):
+            with st.spinner("Healing dataset..."):
+                from components.data_cleaner import auto_clean_data
+                from utils.helpers import detect_column_categories, generate_smart_schema
+                from utils.kpi_detector import get_all_kpis
+
+                # 1. Clean the Data
+                cleaned_df = auto_clean_data(st.session_state.df)
+                
+                # 2. Recalculate ALL Metadata (Crucial for UI Update)
+                new_fi = fi.copy()
+                new_fi['num_rows'] = len(cleaned_df)
+                new_fi['has_missing_values'] = cleaned_df.isna().any().any()
+                
+                new_cats = detect_column_categories(cleaned_df)
+                new_schema = generate_smart_schema(cleaned_df, new_fi, new_cats)
+                new_kpis = get_all_kpis(cleaned_df, new_fi)
+
+                # 3. Update Session State[cite: 1]
+                st.session_state.df = cleaned_df
+                st.session_state.file_info = new_fi
+                st.session_state.schema = new_schema
+                st.session_state.column_categories = new_cats
+                st.session_state.kpis = new_kpis['kpis']
+                
+                # 4. Sync Database[cite: 1]
+                reset_database()
+                load_dataframe_to_db(cleaned_df)
+                
+                st.success("Dataset successfully healed!")
+                st.rerun() # Refresh the UI to show the new 'A' or 'B' grade
 
 # ─────────────────────────────────────────────
 # RESET
