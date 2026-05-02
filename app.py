@@ -1414,22 +1414,31 @@ def render_refinement_tab():
                 # This is the line that was causing the NameError
                 cleaned_df = auto_clean_data(st.session_state.df)
                 
-                # Refresh all metadata
+                # 2. Refresh all metadata
                 new_fi = fi.copy()
                 new_fi['num_rows'] = len(cleaned_df)
                 new_fi['has_missing_values'] = cleaned_df.isna().any().any()
-                new_fi['column_details'] = [{'name': col, 'type': str(cleaned_df[col].dtype), 'null_count': 0} for col in cleaned_df.columns]
+                
+                # FIX: Build a complete metadata list to satisfy generate_smart_schema
+                new_fi['column_details'] = []
+                for col in cleaned_df.columns:
+                    new_fi['column_details'].append({
+                        'name': col,
+                        'type': str(cleaned_df[col].dtype),
+                        'non_null_count': int(cleaned_df[col].count()),
+                        'null_count': int(cleaned_df[col].isnull().sum()),
+                        'unique_count': int(cleaned_df[col].nunique())
+                    })
 
+                # 3. Update Session State
                 st.session_state.df = cleaned_df
                 st.session_state.file_info = new_fi
-                st.session_state.schema = generate_smart_schema(cleaned_df, new_fi, detect_column_categories(cleaned_df))
-                
-                reset_database()
-                load_dataframe_to_db(cleaned_df)
-                
-                st.session_state.is_cleaning = False
-                st.success("Healed! Metadata updated.")
-                st.rerun()
+                st.session_state.column_categories = detect_column_categories(cleaned_df)
+                st.session_state.schema = generate_smart_schema(
+                    cleaned_df, 
+                    new_fi, 
+                    st.session_state.column_categories
+                )
 # ─────────────────────────────────────────────
 # RESET
 # ─────────────────────────────────────────────
