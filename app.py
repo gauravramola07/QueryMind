@@ -701,16 +701,24 @@ def load_footer():
 def init_session_state():
     defaults = {
         'is_cleaning': False,
-        'cleaning_applied': False,   # ← ADD THIS
-        'df': None,
-        'file_info': None, 'schema': None,
-        'column_categories': None, 'kpis': None,
-        'suggestions': None, 'chat_history': [],
-        'llm_model': None, 'llm_ready': False,
-        'db_loaded': False, 'file_uploaded': False,
-        'current_file_name': None, 'show_sql': True,
-        'chart_type': 'auto', 'data_summary': None,
-        'query_count': 0, 'show_chat': False,
+        'cleaning_applied': False,   # from our previous fix
+        'df': None,                  # ← only once
+        'file_info': None,
+        'schema': None,
+        'column_categories': None,
+        'kpis': None,
+        'suggestions': None,
+        'chat_history': [],
+        'llm_model': None,
+        'llm_ready': False,
+        'db_loaded': False,
+        'file_uploaded': False,
+        'current_file_name': None,
+        'show_sql': True,
+        'chart_type': 'auto',
+        'data_summary': None,
+        'query_count': 0,
+        'show_chat': False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -841,6 +849,10 @@ def initialize_llm():
 
 
 def generate_ai_summary():
+    # Guard: nothing to do if LLM isn't ready
+    if not st.session_state.llm_ready or not st.session_state.schema:
+        return
+
     try:
         r = generate_data_summary(
             st.session_state.schema,
@@ -849,8 +861,12 @@ def generate_ai_summary():
         )
         if r['success']:
             st.session_state.data_summary = r['summary']
-    except:
-        pass
+        else:
+            # LLM returned a failure — clear summary so Overview shows
+            # the "Generate Summary" button instead of stale text
+            st.session_state.data_summary = None
+    except Exception as e:
+        st.session_state.data_summary = None   # never leave stale text behind
 
 
 # ─────────────────────────────────────────────
@@ -1154,10 +1170,36 @@ def process_question(question):
 
 
 def get_chat_context():
-    return [
-        {'question': m.get('question', ''), 'answer_summary': m.get('answer_summary', '')}
+    # Build standard recent Q&A history
+    history = [
+        {
+            'question': m.get('question', ''),
+            'answer_summary': m.get('answer_summary', '')
+        }
         for m in st.session_state.chat_history[-5:]
     ]
+
+    # ── FIX: Prepend a system note when cleaning has been applied ──
+    # Without this, the LLM has no idea cleaning happened and answers
+    # based solely on the schema — which may still look ambiguous.
+    if st.session_state.get('cleaning_applied', False):
+        df = st.session_state.df
+        remaining_nulls = int(df.isnull().sum().sum())
+        null_msg = (
+            "0 null values remain — data is fully clean."
+            if remaining_nulls == 0
+            else f"{remaining_nulls} null value(s) remain (e.g. in date/time columns that could not be inferred)."
+        )
+        history.insert(0, {
+            'question': '[DATA STATE]',
+            'answer_summary': (
+                f"Smart Cleaning was applied to this dataset. "
+                f"Missing values filled, duplicates removed, string columns standardised. "
+                f"{null_msg}"
+            )
+        })
+
+    return history
 
 
 # ─────────────────────────────────────────────
@@ -1481,6 +1523,11 @@ def render_refinement_tab():
                     # ── FIX 3: Refresh KPIs so top cards reflect cleaned data ──
                     st.session_state.kpis = get_all_kpis(cleaned_df, new_fi)['kpis']
                     st.session_state.cleaning_applied = True
+                    st.session_state.cleaning_applied = True
+
+                    # ── FIX: Wipe stale summary and regenerate from fresh schema + kpis ──
+                    st.session_state.data_summary = None   # clears the old "2 missing values" text
+                    generate_ai_summary()                   # rewrites it using the updated schema & kpis
 
                     # ── FIX 3: Wipe stale AI summary so Overview regenerates it ──
                     # The old summary was written from dirty data and tells the LLM
