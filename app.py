@@ -1483,54 +1483,49 @@ def render_refinement_tab():
         if st.button("✨ Apply Smart Cleaning", key="clean_btn", use_container_width=True):
             _rerun = False
             with st.spinner("Neural Engine healing your dataset..."):
-                if st.button("✨ Apply Smart Cleaning", key="clean_btn", use_container_width=True):
-            _rerun = False
-            with st.spinner("Neural Engine healing your dataset..."):
                 try:
-                    # ── SNAPSHOT before state for the report ──
+                    # 1. Snapshot BEFORE state so the report can diff it
                     df_snapshot = st.session_state.df.copy()
 
+                    # 2. Run the cleaner
                     cleaned_df = auto_clean_data(st.session_state.df)
 
-                    # ── Generate the before/after report immediately ──
+                    # 3. Generate before/after report immediately after cleaning
                     st.session_state.cleaning_report = generate_cleaning_report(
                         df_snapshot, cleaned_df
                     )
 
-                    # ... rest of your existing state sync code ...
+                    # 4. Rebuild file_info from actual cleaned data
                     new_fi = fi.copy()
-                    # etc.
-                try:
-                    cleaned_df = auto_clean_data(st.session_state.df)
-
-                    new_fi = fi.copy()
-                    new_fi['num_rows']          = len(cleaned_df)
-                    new_fi['has_missing_values'] = bool(cleaned_df.isnull().any().any())
-                    new_fi['missing_info']       = {}
+                    new_fi['num_rows']           = len(cleaned_df)
+                    new_fi['has_missing_values']  = bool(cleaned_df.isnull().any().any())
+                    new_fi['missing_info']        = {}
 
                     new_fi['column_details'] = []
                     for col in cleaned_df.columns:
                         null_count = int(cleaned_df[col].isnull().sum())
                         new_fi['column_details'].append({
-                            'name':          col,
-                            'type':          str(cleaned_df[col].dtype),
-                            'non_null_count': int(cleaned_df[col].count()),
-                            'null_count':    null_count,
-                            'unique_count':  int(cleaned_df[col].nunique()),
-                            'percentage':    round(null_count / len(cleaned_df) * 100, 2) if len(cleaned_df) else 0.0
+                            'name':           col,
+                            'type':           str(cleaned_df[col].dtype),
+                            'non_null_count':  int(cleaned_df[col].count()),
+                            'null_count':     null_count,
+                            'unique_count':   int(cleaned_df[col].nunique()),
+                            'percentage':     round(null_count / len(cleaned_df) * 100, 2) if len(cleaned_df) else 0.0
                         })
 
-                    st.session_state.df               = cleaned_df
-                    st.session_state.file_info        = new_fi
-                    st.session_state.column_categories = detect_column_categories(cleaned_df)
-                    st.session_state.schema           = generate_smart_schema(
+                    # 5. Sync all session state
+                    st.session_state.df                = cleaned_df
+                    st.session_state.file_info         = new_fi
+                    st.session_state.column_categories  = detect_column_categories(cleaned_df)
+                    st.session_state.schema            = generate_smart_schema(
                         cleaned_df, new_fi, st.session_state.column_categories
                     )
-                    st.session_state.kpis             = get_all_kpis(cleaned_df, new_fi)['kpis']
-                    st.session_state.cleaning_applied  = True
-                    st.session_state.data_summary      = None   # force fresh AI summary
-                    generate_ai_summary()                        # rewrite from clean data
+                    st.session_state.kpis              = get_all_kpis(cleaned_df, new_fi)['kpis']
+                    st.session_state.cleaning_applied   = True
+                    st.session_state.data_summary       = None
+                    generate_ai_summary()
 
+                    # 6. Sync the SQL database
                     reset_database()
                     load_dataframe_to_db(cleaned_df)
 
@@ -1540,7 +1535,8 @@ def render_refinement_tab():
                 except Exception as e:
                     st.error(f"❌ Cleaning failed: {e}")
 
-            # st.rerun() MUST be outside the spinner context
+            # st.rerun() MUST sit outside the spinner — calling it inside
+            # causes RerunException to be swallowed by the spinner's __exit__
             if _rerun:
                 st.rerun()
 
@@ -1748,4 +1744,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-#final upto AI refinemnet 
+#final upto AI refinemnet
