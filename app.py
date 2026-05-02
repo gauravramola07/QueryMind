@@ -1195,15 +1195,30 @@ def render_overview_tab():
     with c2:
         st.markdown("<p class='section-title'>🏥 Data Quality</p>", unsafe_allow_html=True)
         h = get_data_health_score(df, fi)
-        clr = {'A': '#48bb78', 'B': '#4299e1', 'C': '#ed8936', 'D': '#fc8181'}.get(h['grade'], '#667eea')
+
+        # ── SYNC with AI Refinement tab: override grade when cleaning was applied ──
+        cleaning_applied = st.session_state.get('cleaning_applied', False)
+        if cleaning_applied:
+            adjustable = {k: v for k, v in h['breakdown'].items() if k != 'size'}
+            adj_avg = sum(adjustable.values()) / len(adjustable) if adjustable else h['score']
+            display_grade   = 'A' if adj_avg >= 90 else 'B' if adj_avg >= 75 else 'C' if adj_avg >= 60 else 'D'
+            display_overall = round(adj_avg, 1)
+            display_label   = {'A': 'Excellent', 'B': 'Good', 'C': 'Fair', 'D': 'Poor'}.get(display_grade, 'Fair')
+        else:
+            display_grade, display_overall, display_label = h['grade'], h['overall'], h['label']
+
+        clr = {'A': '#48bb78', 'B': '#4299e1', 'C': '#ed8936', 'D': '#fc8181'}.get(display_grade, '#667eea')
         st.markdown(f"""
         <div style='text-align:center;padding:1rem;'>
-            <div style='font-size:3rem;font-weight:900;color:{clr};'>{h['grade']}</div>
-            <div style='color:rgba(255,255,255,0.5) !important;'>{h['label']} ({h['overall']}/100)</div>
+            <div style='font-size:3rem;font-weight:900;color:{clr};'>{display_grade}</div>
+            <div style='color:rgba(255,255,255,0.5) !important;'>{display_label} ({display_overall}/100)</div>
+            {'<div style="font-size:0.75rem;color:#48bb78;margin-top:0.3rem;">✅ Smart Cleaning Applied</div>' if cleaning_applied else ''}
         </div>
         """, unsafe_allow_html=True)
+
         for m, s in h['breakdown'].items():
-            st.progress(s / 100, text=f"{m.title()}: {s}")
+            suffix = " (excluded post-clean)" if m == 'size' and cleaning_applied else ""
+            st.progress(s / 100, text=f"{m.title()}: {s}{suffix}")
 
     st.divider()
     st.markdown("<p class='section-title'>🤖 AI Executive Summary</p>", unsafe_allow_html=True)
@@ -1465,7 +1480,15 @@ def render_refinement_tab():
                     )
                     # ── FIX 3: Refresh KPIs so top cards reflect cleaned data ──
                     st.session_state.kpis = get_all_kpis(cleaned_df, new_fi)['kpis']
-                    st.session_state.cleaning_applied = True  # ← Triggers grade override on rerun
+                    st.session_state.cleaning_applied = True
+
+                    # ── FIX 3: Wipe stale AI summary so Overview regenerates it ──
+                    # The old summary was written from dirty data and tells the LLM
+                    # "there are missing values" — causing wrong chat responses.
+                    st.session_state.data_summary = None
+                    st.session_state.suggestions = generate_smart_suggestions(
+                        cleaned_df, new_fi, st.session_state.column_categories
+                    )
 
                     # 4. Sync the SQL database
                     reset_database()
