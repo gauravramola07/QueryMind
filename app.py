@@ -881,7 +881,7 @@ def render_welcome():
             Upload your dataset for AI based analytics
         </div>
         <div style='font-size: 0.9rem; color: rgba(255,255,255,0.5) !important; margin-top: 0.5rem;'>
-            Supports CSV and Excel files (up to 50MB)
+            Supports CSV and Excel files (up to 200MB)
         </div>
     </div>
     """, unsafe_allow_html=True)
