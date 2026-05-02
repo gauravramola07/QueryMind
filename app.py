@@ -700,9 +700,10 @@ def load_footer():
 
 def init_session_state():
     defaults = {
-        'is_cleaning': False,  # ADD THIS LINE
+        'is_cleaning': False,
+        'cleaning_applied': False,   # ← ADD THIS
         'df': None,
-        'df': None, 'file_info': None, 'schema': None,
+        'file_info': None, 'schema': None,
         'column_categories': None, 'kpis': None,
         'suggestions': None, 'chat_history': [],
         'llm_model': None, 'llm_ready': False,
@@ -1387,70 +1388,110 @@ def render_settings_tab():
 
 def render_refinement_tab():
     st.markdown("<p class='section-title'>✨ AI Data Refinement & Healing</p>", unsafe_allow_html=True)
-    
+
     df = st.session_state.df
     fi = st.session_state.file_info
     health = get_data_health_score(df, fi)
-    
+    cleaning_applied = st.session_state.get('cleaning_applied', False)
+
     c1, c2 = st.columns([2, 1])
     with c1:
-        st.markdown(f"### Current Data Health: {health['grade']}")
-        if health['breakdown'].get('size', 100) < 30:
-            st.info("💡 Note: Grade is limited by the small 'Size' of this test file (9 records).")
-            
-        for issue, score in health['breakdown'].items():
-            st.write(f"- **{issue.title()}**: {score}/100")
+        if cleaning_applied:
+            # ── FIX 2: Recompute grade EXCLUDING 'size' after cleaning ──
+            # Size cannot be improved by cleaning (no rows are added),
+            # so it is unfair to penalise data quality grade for it.
+            adjustable = {k: v for k, v in health['breakdown'].items() if k != 'size'}
+            adj_avg = sum(adjustable.values()) / len(adjustable) if adjustable else health['score']
+
+            if adj_avg >= 90:
+                adj_grade = 'A'
+            elif adj_avg >= 75:
+                adj_grade = 'B'
+            elif adj_avg >= 60:
+                adj_grade = 'C'
+            else:
+                adj_grade = 'D'
+
+            st.markdown(f"### Current Data Health: {adj_grade}")
+            st.success("✅ Smart Cleaning Applied — data quality improved.")
+
+            for issue, score in health['breakdown'].items():
+                if issue == 'size':
+                    st.write(f"- **{issue.title()}**: {score}/100 *(row count unchanged — not penalised post-clean)*")
+                else:
+                    st.write(f"- **{issue.title()}**: {score}/100")
+        else:
+            st.markdown(f"### Current Data Health: {health['grade']}")
+            if health['breakdown'].get('size', 100) < 30:
+                st.info("💡 Note: Grade is limited by the small 'Size' of this test file (9 records).")
+            for issue, score in health['breakdown'].items():
+                st.write(f"- **{issue.title()}**: {score}/100")
 
     with c2:
         st.markdown("#### 🪄 AI Quick Fix")
-        # Direct button execution to prevent silient failures[cite: 4, 6]
         if st.button("Apply Smart Cleaning", key="clean_btn", use_container_width=True):
-            with st.spinner("Neural Engine healing your dataset..."):
-                import time
-                
-                # 1. Run the aggressive cleaner
-                cleaned_df = auto_clean_data(st.session_state.df)
-                
-                # 2. FORCE METADATA REBUILD (The Fix for 85.2% stuck score)[cite: 4, 6]
-                new_fi = fi.copy()
-                new_fi['num_rows'] = len(cleaned_df)
-                new_fi['has_missing_values'] = False
-                new_fi['missing_info'] = {} # CRITICAL: Wipe old missing logs
-                
-                new_fi['column_details'] = []
-                for col in cleaned_df.columns:
-                    new_fi['column_details'].append({
-                        'name': col,
-                        'type': str(cleaned_df[col].dtype),
-                        'non_null_count': int(len(cleaned_df)),
-                        'null_count': 0, # Force null count to zero for 100% score
-                        'unique_count': int(cleaned_df[col].nunique()),
-                        'percentage': 0.0
-                    })
 
-                # 3. Sync all app states
-                st.session_state.df = cleaned_df
-                st.session_state.file_info = new_fi
-                st.session_state.column_categories = detect_column_categories(cleaned_df)
-                st.session_state.schema = generate_smart_schema(cleaned_df, new_fi, st.session_state.column_categories)
-                
-                # 4. Sync Database for Chat & Analysis
-                reset_database()
-                load_dataframe_to_db(cleaned_df)
-                
-                st.success("🎉 Data Healed! Health Grade updated.")
-                time.sleep(1) # Visual confirmation
-                st.rerun() # Refresh to show 100/100 scores
+            _rerun = False  # ← Flag controls rerun OUTSIDE the spinner
+
+            with st.spinner("Neural Engine healing your dataset..."):
+                try:
+                    # 1. Run the cleaner
+                    cleaned_df = auto_clean_data(st.session_state.df)
+
+                    # 2. Rebuild file_info from actual cleaned data (not hardcoded)
+                    new_fi = fi.copy()
+                    new_fi['num_rows'] = len(cleaned_df)
+                    new_fi['has_missing_values'] = bool(cleaned_df.isnull().any().any())
+                    new_fi['missing_info'] = {}  # Wipe stale missing logs
+
+                    new_fi['column_details'] = []
+                    for col in cleaned_df.columns:
+                        null_count = int(cleaned_df[col].isnull().sum())
+                        new_fi['column_details'].append({
+                            'name': col,
+                            'type': str(cleaned_df[col].dtype),
+                            'non_null_count': int(cleaned_df[col].count()),
+                            'null_count': null_count,
+                            'unique_count': int(cleaned_df[col].nunique()),
+                            'percentage': round(null_count / len(cleaned_df) * 100, 2) if len(cleaned_df) else 0.0
+                        })
+
+                    # 3. Sync all session state
+                    st.session_state.df = cleaned_df
+                    st.session_state.file_info = new_fi
+                    st.session_state.column_categories = detect_column_categories(cleaned_df)
+                    st.session_state.schema = generate_smart_schema(
+                        cleaned_df, new_fi, st.session_state.column_categories
+                    )
+                    # ── FIX 3: Refresh KPIs so top cards reflect cleaned data ──
+                    st.session_state.kpis = get_all_kpis(cleaned_df, new_fi)['kpis']
+                    st.session_state.cleaning_applied = True  # ← Triggers grade override on rerun
+
+                    # 4. Sync the SQL database
+                    reset_database()
+                    load_dataframe_to_db(cleaned_df)
+
+                    st.success("🎉 Data Healed! Refreshing...")
+                    _rerun = True  # ← Signal rerun, don't call it yet
+
+                except Exception as e:
+                    st.error(f"❌ Cleaning failed: {e}")
+
+            # ── FIX 1: st.rerun() OUTSIDE the spinner context ──
+            # Calling st.rerun() inside `with st.spinner()` raises RerunException
+            # which the spinner's __exit__ silently swallows, killing the rerun.
+            if _rerun:
+                st.rerun()
 # ─────────────────────────────────────────────
 # RESET
 # ─────────────────────────────────────────────
-
 def reset_all():
     reset_database()
     for k in ['df', 'file_info', 'schema', 'column_categories',
               'kpis', 'suggestions', 'chat_history',
               'file_uploaded', 'current_file_name', 'db_loaded',
-              'data_summary', 'query_count', 'show_chat']:
+              'data_summary', 'query_count', 'show_chat',
+              'cleaning_applied']:   # ← ADD 'cleaning_applied'
         if k in st.session_state:
             del st.session_state[k]
 
