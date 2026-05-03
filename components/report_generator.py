@@ -1,15 +1,31 @@
 # components/report_generator.py
 """
 QueryMind PDF Report Generator
-Fixes applied vs v1:
-  - Real drawn progress bars (no more asterisk * hack)
-  - Numeric describe() table: abbreviated column names so nothing truncates
-  - Chart embedding: tries plotly/kaleido first, falls back to matplotlib bar charts
-  - Cleaner cover layout with a coloured grade pill
+Fixes applied vs v2:
+  - FIX 1: matplotlib.use('Agg') moved to module level so it takes effect
+            before pyplot is ever imported, regardless of import order.
+  - FIX 2: _matplotlib_chart() now accepts explicit `col`, `group_col`,
+            and `chart_type` params so each chart spec plots different data.
+  - FIX 3: Removed the premature "Generating charts from dataset…" message
+            that appeared alongside "No charts could be generated" when all
+            fallbacks failed, causing doubled/overlapping text on Page 3.
+  - FIX 4: Added PageBreak before Numeric Summary so Page 1 no longer
+            overflows ~846 pts of content into the 694 pt frame (which was
+            causing the visual overlap / content bleeding into footer).
+  - FIX 5: Reduced grade-pill fontSize from 52 → 36 to reclaim ~60 pts of
+            vertical space on Page 1 while still looking prominent.
+  - FIX 6: Exception in _matplotlib_chart now prints a traceback so failures
+            are diagnosable from the Streamlit console.
 """
+
+# ── matplotlib MUST be configured before pyplot is imported anywhere ──────────
+import matplotlib
+matplotlib.use('Agg')                      # non-interactive PNG backend
+import matplotlib.pyplot as plt            # safe to import here now
 
 import io
 import re
+import traceback
 from datetime import datetime
 
 import numpy as np
@@ -23,6 +39,7 @@ from reportlab.lib.units import cm
 from reportlab.platypus import (
     BaseDocTemplate, Frame, HRFlowable, Image,
     PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle,
+    KeepTogether,
 )
 from reportlab.graphics.shapes import Drawing, Rect, String
 from reportlab.graphics import renderPDF
@@ -37,7 +54,7 @@ RED_CLR   = colors.HexColor('#fc8181')
 BG_DARK   = colors.HexColor('#0d0d2b')
 BG_CARD   = colors.HexColor('#1a1a3e')
 BG_ROW    = colors.HexColor('#161630')
-BG_BAR    = colors.HexColor('#2d3748')   # empty bar track
+BG_BAR    = colors.HexColor('#2d3748')
 TEXT_WHT  = colors.HexColor('#f7fafc')
 TEXT_MUT  = colors.HexColor('#a0aec0')
 BORDER    = colors.HexColor('#2d3748')
@@ -86,7 +103,7 @@ class _Doc(BaseDocTemplate):
         canv.setFillColor(PURPLE)
         canv.rect(0, h - 3, w, 3, fill=1, stroke=0)
 
-        # Header text (sits 1.5cm from top to avoid overlap with 3cm margin)
+        # Header text
         canv.setFont('Helvetica', 7.5)
         canv.setFillColor(TEXT_MUT)
         canv.drawString(doc.leftMargin, h - 1.5*cm, 'QueryMind Analytics Report')
@@ -106,12 +123,8 @@ class _Doc(BaseDocTemplate):
         canv.restoreState()
 
 
-# ── FIX 1: Real drawn progress bar (replaces asterisk * hack) ────────────────
+# ── Real drawn progress bar ───────────────────────────────────────────────────
 def _progress_bar(score, bar_w, bar_h=10, fill_color=None):
-    """
-    Returns a ReportLab Drawing of a filled progress bar.
-    score: 0–100
-    """
     if fill_color is None:
         if score >= 90:   fill_color = GREEN
         elif score >= 75: fill_color = BLUE
@@ -119,50 +132,60 @@ def _progress_bar(score, bar_w, bar_h=10, fill_color=None):
         else:             fill_color = RED_CLR
 
     d = Drawing(bar_w, bar_h)
-    # Track (empty background)
-    d.add(Rect(0, 0, bar_w, bar_h,
-               fillColor=BG_BAR, strokeColor=None, rx=3, ry=3))
-    # Fill
+    d.add(Rect(0, 0, bar_w, bar_h, fillColor=BG_BAR, strokeColor=None, rx=3, ry=3))
     fill_w = max(0, (score / 100) * bar_w)
     if fill_w > 0:
-        d.add(Rect(0, 0, fill_w, bar_h,
-                   fillColor=fill_color, strokeColor=None, rx=3, ry=3))
+        d.add(Rect(0, 0, fill_w, bar_h, fillColor=fill_color, strokeColor=None, rx=3, ry=3))
     return d
 
 
-# ── FIX 2: Matplotlib chart fallback ─────────────────────────────────────────
-def _matplotlib_chart(df, title, usable_w):
+# ── FIX 1 + 2: Matplotlib chart — explicit column params, module-level backend ─
+def _matplotlib_chart(df, title, usable_w, chart_type='bar', col=None, group_col=None):
     """
-    Generates a simple bar chart via matplotlib as a PNG in memory.
-    Used when plotly/kaleido is unavailable.
+    Generate a PNG chart via matplotlib and return a ReportLab Image flowable.
+
+    Parameters
+    ----------
+    df         : pd.DataFrame  — source data
+    title      : str           — chart title (displayed on the chart)
+    usable_w   : float         — available page width in points
+    chart_type : 'bar' | 'hist'
+    col        : str | None    — numeric column to plot (auto-detect if None)
+    group_col  : str | None    — categorical column to group by (bar charts)
     """
     try:
-        import matplotlib
-        matplotlib.use('Agg')
-        import matplotlib.pyplot as plt
-
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         if not numeric_cols:
             return None
 
-        col = numeric_cols[0]
-        # For categoricals, do a groupby; otherwise do a histogram
+        # Resolve column defaults
+        if col is None or col not in df.columns:
+            col = numeric_cols[0]
+
         cat_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+        if group_col is None and cat_cols:
+            group_col = cat_cols[0]
 
         fig, ax = plt.subplots(figsize=(9, 3.5), facecolor='#0d0d2b')
         ax.set_facecolor('#1a1a3e')
 
-        if cat_cols:
-            grp = df.groupby(cat_cols[0])[col].sum().nlargest(10)
-            bars = ax.bar(grp.index.astype(str), grp.values,
-                          color='#667eea', edgecolor='#2d3748', linewidth=0.5)
-            ax.set_xlabel(cat_cols[0], color='#a0aec0', fontsize=8)
+        if chart_type == 'bar' and group_col and group_col in df.columns:
+            grp = df.groupby(group_col)[col].sum().nlargest(10)
+            ax.bar(
+                grp.index.astype(str), grp.values,
+                color='#667eea', edgecolor='#2d3748', linewidth=0.5
+            )
+            ax.set_xlabel(group_col, color='#a0aec0', fontsize=8)
+            ax.set_ylabel(f'Sum of {col}', color='#a0aec0', fontsize=8)
         else:
-            ax.hist(df[col].dropna(), bins=20, color='#667eea',
-                    edgecolor='#2d3748', linewidth=0.5)
+            # Histogram / distribution
+            ax.hist(
+                df[col].dropna(), bins=20,
+                color='#667eea', edgecolor='#2d3748', linewidth=0.5
+            )
             ax.set_xlabel(col, color='#a0aec0', fontsize=8)
+            ax.set_ylabel('Frequency', color='#a0aec0', fontsize=8)
 
-        ax.set_ylabel(col, color='#a0aec0', fontsize=8)
         ax.set_title(title, color='#f7fafc', fontsize=10, pad=8)
         ax.tick_params(colors='#a0aec0', labelsize=7)
         for spine in ax.spines.values():
@@ -171,19 +194,21 @@ def _matplotlib_chart(df, title, usable_w):
         plt.tight_layout(pad=0.5)
 
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=160,
-                    facecolor='#0d0d2b', bbox_inches='tight')
+        fig.savefig(buf, format='png', dpi=150, facecolor='#0d0d2b', bbox_inches='tight')
         plt.close(fig)
         buf.seek(0)
 
         img_h = usable_w * (3.5 / 9)
         return Image(buf, width=usable_w, height=img_h)
+
     except Exception:
+        # FIX 6: Print traceback so the failure is visible in the Streamlit console
+        print(f'[QueryMind PDF] Chart "{title}" failed:\n{traceback.format_exc()}')
         return None
 
 
 def _plotly_image(fig, usable_w):
-    """Try plotly/kaleido first; return None (caller uses matplotlib fallback)."""
+    """Try plotly/kaleido; return None so matplotlib fallback kicks in."""
     try:
         import plotly.io as pio
         png = pio.to_image(fig, format='png', width=900, height=420, scale=2)
@@ -274,7 +299,7 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
     )
 
     # ─────────────────────────────────────────────────────────────────────────
-    # PAGE 1 — COVER + DATA QUALITY + STATISTICS
+    # PAGE 1 — COVER + DATA QUALITY + DATASET STATISTICS
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── Cover ────────────────────────────────────────────────────────────────
@@ -304,10 +329,10 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
     grade_lbl = health.get('label', 'Fair')
     overall   = health.get('overall', 0)
 
-    # Grade pill card
+    # FIX 5: Reduced grade fontSize 52 → 36 to save ~60 pts of vertical space
     grade_pill = Table([[
         Paragraph(grade, ParagraphStyle(
-            'gp', fontSize=52, textColor=gc,
+            'gp', fontSize=36, textColor=gc,
             fontName='Helvetica-Bold', alignment=TA_CENTER)),
         Paragraph(
             f'<font size="14" color="{gc.hexval()}"><b>{grade_lbl}</b></font><br/>'
@@ -326,10 +351,10 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
     story.append(grade_pill)
     story.append(Spacer(1, 0.25*cm))
 
-    # ── FIX 1: Real progress bars for metric breakdown ────────────────────────
+    # Real progress bars for metric breakdown
     breakdown = health.get('breakdown', {})
     if breakdown:
-        bar_w    = usable_w - 5.5*cm   # space for label + score text
+        bar_w    = usable_w - 5.5*cm
         bar_rows = []
         for metric, score in breakdown.items():
             bar = _progress_bar(score, bar_w, bar_h=9)
@@ -371,10 +396,17 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
         ('Memory',         f'{mem_mb} MB'),
     ], st, usable_w))
 
-    # ── FIX 2: Numeric describe() — abbreviate long col names to avoid truncation ──
+    # ─────────────────────────────────────────────────────────────────────────
+    # FIX 4: PAGE BREAK before Numeric Summary
+    # Without this, Page 1 accumulates ~846 pts of content vs a 694 pt frame,
+    # causing the grade pill, progress bars, stats and table to visually
+    # overlap each other and bleed into the footer area.
+    # ─────────────────────────────────────────────────────────────────────────
+    story.append(PageBreak())
+
+    # ── Numeric Summary ───────────────────────────────────────────────────────
     numeric_df = df.select_dtypes(include=[np.number])
     if not numeric_df.empty:
-        story.append(Spacer(1, 0.4*cm))
         story.append(Paragraph('Numeric Summary', st['h2']))
 
         desc = numeric_df.describe().round(2)
@@ -397,7 +429,7 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
         story.append(_data_table(
             hdr, d_rows, usable_w,
             col_widths=col_widths,
-            font_size=7        # slightly smaller font fits more columns
+            font_size=7
         ))
 
     # ── Key KPIs ─────────────────────────────────────────────────────────────
@@ -410,7 +442,7 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
             story.append(Spacer(1, 0.12*cm))
 
     # ─────────────────────────────────────────────────────────────────────────
-    # PAGE 2 — AI EXECUTIVE SUMMARY
+    # PAGE 3 — AI EXECUTIVE SUMMARY
     # ─────────────────────────────────────────────────────────────────────────
     if data_summary:
         story.append(PageBreak())
@@ -424,15 +456,14 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
                 story.append(Spacer(1, 0.12*cm))
 
     # ─────────────────────────────────────────────────────────────────────────
-    # PAGE 3 — VISUAL ANALYTICS
+    # PAGE 4 — VISUAL ANALYTICS
     # ─────────────────────────────────────────────────────────────────────────
     story.append(PageBreak())
     story.append(Paragraph('Visual Analytics', st['h2']))
 
     charts_added = 0
 
-    # Try Plotly figures first (needs kaleido installed in app env)
-    # Each figure is tried individually; failures fall through to matplotlib
+    # ── Attempt Plotly/kaleido first ─────────────────────────────────────────
     if figures:
         for fig in figures[:4]:
             img = _plotly_image(fig, usable_w)
@@ -441,42 +472,66 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
                 story.append(Spacer(1, 0.35*cm))
                 charts_added += 1
 
-    # ── Matplotlib fallback: always run when plotly produced fewer than 2 charts ──
-    # This ensures the Visual Analytics page is NEVER empty, even when kaleido
-    # is missing or returns None for every figure.
-    if charts_added < 2:
-        if charts_added == 0:
-            story.append(Paragraph(
-                'Generating charts from dataset…', st['muted']
-            ))
-            story.append(Spacer(1, 0.2*cm))
-
+    # ── FIX 1+2: Matplotlib fallback with explicit column routing ────────────
+    # Each chart_spec now carries the exact col + group_col to plot, so all
+    # four charts show DIFFERENT data instead of all defaulting to col[0].
+    # The premature "Generating charts…" message (FIX 3) is removed — it was
+    # always followed by "No charts could be generated" when charts failed,
+    # producing two overlapping status lines on the Visual Analytics page.
+    if charts_added < 4:
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         cat_cols     = df.select_dtypes(include=['object', 'category']).columns.tolist()
 
+        # Build specs — each entry describes exactly what to plot
         chart_specs = []
-        # Chart 1: top-N category breakdown
-        if cat_cols and numeric_cols:
-            chart_specs.append((f'{numeric_cols[0]} by {cat_cols[0]}', df))
-        # Chart 2: distribution of first numeric col
-        if numeric_cols:
-            chart_specs.append((f'Distribution of {numeric_cols[0]}', df))
-        # Chart 3: distribution of second numeric col (if available)
-        if len(numeric_cols) >= 2:
-            chart_specs.append((f'Distribution of {numeric_cols[1]}', df))
-        # Chart 4: second category × second numeric
-        if len(cat_cols) >= 2 and len(numeric_cols) >= 2:
-            chart_specs.append((f'{numeric_cols[1]} by {cat_cols[1]}', df))
 
-        needed = 4 - charts_added   # fill up to 4 total charts
-        for title, data in chart_specs[:needed]:
-            img = _matplotlib_chart(data, title, usable_w)
+        if cat_cols and numeric_cols:
+            chart_specs.append(dict(
+                title=f'{numeric_cols[0]} by {cat_cols[0]}',
+                chart_type='bar',
+                col=numeric_cols[0],
+                group_col=cat_cols[0],
+            ))
+
+        if numeric_cols:
+            chart_specs.append(dict(
+                title=f'Distribution of {numeric_cols[0]}',
+                chart_type='hist',
+                col=numeric_cols[0],
+                group_col=None,
+            ))
+
+        if len(numeric_cols) >= 2:
+            chart_specs.append(dict(
+                title=f'Distribution of {numeric_cols[1]}',
+                chart_type='hist',
+                col=numeric_cols[1],
+                group_col=None,
+            ))
+
+        if len(cat_cols) >= 2 and len(numeric_cols) >= 2:
+            chart_specs.append(dict(
+                title=f'{numeric_cols[1]} by {cat_cols[1]}',
+                chart_type='bar',
+                col=numeric_cols[1],
+                group_col=cat_cols[1],
+            ))
+
+        needed = 4 - charts_added
+        for spec in chart_specs[:needed]:
+            img = _matplotlib_chart(
+                df, spec['title'], usable_w,
+                chart_type=spec['chart_type'],
+                col=spec['col'],
+                group_col=spec['group_col'],
+            )
             if img:
                 story.append(img)
-                story.append(Paragraph(title, st['cap']))
+                story.append(Paragraph(spec['title'], st['cap']))
                 story.append(Spacer(1, 0.5*cm))
                 charts_added += 1
 
+    # FIX 3: Only ONE status message, only when truly no charts were produced
     if charts_added == 0:
         story.append(Paragraph(
             'No charts could be generated for this dataset.',
@@ -484,7 +539,7 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
         ))
 
     # ─────────────────────────────────────────────────────────────────────────
-    # PAGE 4 — SMART CLEANING REPORT (only if cleaning was run)
+    # PAGE 5 — SMART CLEANING REPORT (only if cleaning was run)
     # ─────────────────────────────────────────────────────────────────────────
     if cleaning_report:
         cr = cleaning_report

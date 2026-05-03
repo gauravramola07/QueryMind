@@ -348,10 +348,19 @@ def load_css():
     .footer-name { color: #a78bfa !important; font-weight: 600; }
     .footer-div { color: rgba(255,255,255,0.15) !important; margin: 0 0.5rem; }
 
-    /* Hide Defaults */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    /* ── Hide ALL Streamlit chrome: menus, header bar, footer, deploy badge ── */
+    /* FIX: use display:none (not visibility:hidden) so the elements are    */
+    /* fully removed from layout — visibility:hidden kept the "anonymous"   */
+    /* user-chip visible on Streamlit Cloud because it still occupies space. */
+    #MainMenu                          { display: none !important; }
+    footer                             { display: none !important; }
+    header                             { display: none !important; }
+    [data-testid="stHeader"]           { display: none !important; }
+    [data-testid="stToolbar"]          { display: none !important; }
+    [data-testid="stDecoration"]       { display: none !important; }
+    [data-testid="stStatusWidget"]     { display: none !important; }
+    /* Hides the "Deploy" button / viewer badge on Streamlit Community Cloud */
+    [data-testid="manage-app-button"]  { display: none !important; }
     /* ... (previous CSS code) ... */
 
     /* ── DataFrames ── */
