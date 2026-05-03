@@ -2489,7 +2489,7 @@ def render_join_tab():
                     reset_database()
                     load_dataframe_to_db(current_df)
                     
-                    if st.session_state.get("df_original") is None:
+                    if st.session_state.get("df_original") is None: # <--- FIXED HERE
                         st.session_state["df_original"] = df1.copy()
                         
                     new_pool = [f for f in extra_files if f["name"] not in files_to_remove]
@@ -2570,7 +2570,7 @@ def render_join_tab():
         reset_database()
         load_dataframe_to_db(merged_df)
 
-        if st.session_state.get("df_original") is None:
+        if st.session_state.get("df_original") is None: # <--- FIXED HERE
             st.session_state["df_original"] = df1.copy()
 
         new_pool = [ef for ef in extra_files if ef["name"] != right_name]
