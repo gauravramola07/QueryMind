@@ -32,7 +32,7 @@ from components.sql_executor import (
     reset_database, ensure_db_loaded
 )
 from components.llm_engine import (
-    setup_gemini, generate_sql_query,
+    setup_llm, generate_sql_query,
     generate_text_response, generate_data_summary
 )
 from components.chart_generator import (
