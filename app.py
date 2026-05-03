@@ -529,7 +529,92 @@ def load_css():
         transform: scale(0.9) !important;
     }
                 
-    /* ── Premium AI Activation Button ── */
+    /* ── Premium Action Button (Generate PDF) ── */
+     [data-testid="stButton"] button[key="gen_pdf_btn"],
+     [data-testid="stButton"] button[key="download_pdf_btn"],
+     [data-testid="stButton"] button[key="download_cleaned_csv"] {
+         background: linear-gradient(135deg, #667eea, #764ba2) !important;
+         border: none !important;
+         border-radius: 14px !important;
+         color: white !important;
+         font-weight: 600 !important;
+         padding: 0.8rem 1.5rem !important;
+         transition: all 0.3s ease !important;
+         box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
+     }
+     
+     [data-testid="stButton"] button[key="gen_pdf_btn"]:hover,
+     [data-testid="stButton"] button[key="download_pdf_btn"]:hover,
+     [data-testid="stButton"] button[key="download_cleaned_csv"]:hover,
+     [data-testid="stButton"] button[key="download_csv_btn"]:hover {
+         transform: translateY(-2px) !important;
+         box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5) !important;
+         background: linear-gradient(135deg, #764ba2, #667eea) !important;
+     }
+
+     /* ── Premium Stats Card ── */
+     .stat-card {
+         background: rgba(255,255,255,0.04);
+         backdrop-filter: blur(15px);
+         border: 1px solid rgba(255,255,255,0.08);
+         border-radius: 16px;
+         padding: 1.2rem;
+         text-align: center;
+         transition: all 0.3s ease;
+     }
+     .stat-card:hover {
+         transform: translateY(-4px);
+         border-color: rgba(102, 126, 234, 0.3);
+         box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+     }
+     .stat-icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
+     .stat-value { font-size: 1.6rem; font-weight: 800; color: #f7fafc !important; margin: 0; }
+     .stat-label { font-size: 0.8rem; color: rgba(255,255,255,0.5) !important; margin-top: 0.3rem; }
+
+     /* ── Settings Buttons with Hover ── */
+     .stButton > button[key="clear_chat_btn"],
+     .stButton > button[key="upload_new_btn"],
+     .stButton > button[key="regen_summary_btn"],
+     .stButton > button[key="reconnect_ai"] {
+         background: rgba(255,255,255,0.06) !important;
+         backdrop-filter: blur(10px);
+         border: 1px solid rgba(255,255,255,0.1) !important;
+         color: #e2e8f0 !important;
+         border-radius: 12px !important;
+         font-family: 'Inter', sans-serif !important;
+         font-size: 0.85rem !important;
+         transition: all 0.3s ease !important;
+     }
+     
+     .stButton > button[key="clear_chat_btn"]:hover,
+     .stButton > button[key="upload_new_btn"]:hover,
+     .stButton > button[key="regen_summary_btn"]:hover,
+     .stButton > button[key="reconnect_ai"]:hover {
+         background: rgba(102, 126, 234, 0.15) !important;
+         border-color: rgba(102, 126, 234, 0.4) !important;
+         transform: translateY(-1px) !important;
+         box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2) !important;
+     }
+
+     /* ── Premium Selectbox Styling ── */
+     [data-testid="stSelectbox"] > div > div {
+         background: rgba(255,255,255,0.04) !important;
+         border: 1px solid rgba(255,255,255,0.12) !important;
+         border-radius: 12px !important;
+         transition: all 0.3s ease !important;
+     }
+     
+     [data-testid="stSelectbox"] > div > div:hover {
+         border-color: rgba(102, 126, 234, 0.4) !important;
+         box-shadow: 0 0 15px rgba(102, 126, 234, 0.2) !important;
+     }
+     
+     [data-testid="stSelectbox"] .stSelectbox-label {
+         color: rgba(255,255,255,0.8) !important;
+         font-weight: 500 !important;
+     }
+
+     /* ── Premium AI Activation Button ── */
     .stButton > button[key="activate_ai"] {
         background: linear-gradient(135deg, #667eea, #764ba2) !important;
         color: white !important;
@@ -989,14 +1074,16 @@ def render_chat_section():
     # ── CASE 1: AI ENGINE IS OFFLINE (Show Activation Screen) ──
     if not st.session_state.show_chat:
         st.markdown("""
-        <div class='glass-card' style='text-align:center; padding: 3rem; border: 1px dashed rgba(102,126,234,0.3);'>
-            <div style='font-size: 4.5rem; margin-bottom: 1rem; filter: drop-shadow(0 0 15px rgba(102,126,234,0.4));'>🤖</div>
-            <h2 style='margin-bottom: 0.5rem; background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>
-                Neural Engine Offline
-            </h2>
-            <p style='color:rgba(255,255,255,0.5) !important; margin-bottom: 2rem; font-size: 1rem;'>
-                Activate the QueryMind AI Assistant to start natural language discovery and automated insights.
-            </p>
+        <div style='text-align:center; padding: 3rem 1rem;'>
+            <div class='glass-card' style='padding: 3rem; border: 1px dashed rgba(102,126,234,0.3); max-width: 500px; margin: 0 auto;'>
+                <div style='font-size: 5rem; margin-bottom: 1rem; filter: drop-shadow(0 0 20px rgba(102,126,234,0.5));'>🤖</div>
+                <h2 style='margin-bottom: 0.5rem; background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2rem;'>
+                    Neural Engine Offline
+                </h2>
+                <p style='color:rgba(255,255,255,0.6) !important; margin-bottom: 2rem; font-size: 1.05rem; line-height: 1.6;'>
+                    Activate the QueryMind AI Assistant to start natural language discovery.<br>Ask questions in plain English and get instant insights.
+                </p>
+            </div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1009,6 +1096,7 @@ def render_chat_section():
         sugs = st.session_state.suggestions
         if sugs:
             st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<p class='section-title' style='font-size: 1rem;'>💡 Quick Discovery Questions</p>", unsafe_allow_html=True)
             cols = st.columns(2)
             for i, s in enumerate(sugs[:4]):
                 with cols[i % 2]:
@@ -1229,7 +1317,13 @@ def render_overview_tab():
     cols = st.columns(len(stats))
     for col, s in zip(cols, stats):
         with col:
-            st.metric(f"{s['icon']} {s['label']}", s['value'])
+            st.markdown(f"""
+            <div class='stat-card'>
+                <div class='stat-icon'>{s['icon']}</div>
+                <p class='stat-value'>{s['value']}</p>
+                <p class='stat-label'>{s['label']}</p>
+            </div>
+            """, unsafe_allow_html=True)
 
     st.divider()
     c1, c2 = st.columns(2)
@@ -1450,7 +1544,7 @@ def render_preview_tab():
     csv = df.to_csv(index=False).encode('utf-8')
     st.download_button("📥 Download CSV", csv,
                         f"querymind_{datetime.now().strftime('%Y%m%d')}.csv",
-                        "text/csv", use_container_width=True)
+                        "text/csv", use_container_width=True, key="download_csv_btn")
 
 def render_schema_tab():
     fi = st.session_state.file_info
@@ -1496,7 +1590,7 @@ def render_settings_tab():
         st.write(f"**Model:** {config.LLM_MODEL}")
         st.write(f"**Provider:** Groq AI")
         if not st.session_state.llm_ready:
-            if st.button("🔄 Reconnect AI", use_container_width=True):
+            if st.button("🔄 Reconnect AI", use_container_width=True, key="reconnect_ai"):
                 initialize_llm()
                 st.rerun()
 
@@ -1512,16 +1606,16 @@ def render_settings_tab():
     st.divider()
     c1, c2, c3 = st.columns(3)
     with c1:
-        if st.button("🗑️ Clear Chat", use_container_width=True):
+        if st.button("🗑️ Clear Chat", use_container_width=True, key="clear_chat_btn"):
             st.session_state.chat_history = []
             st.session_state.query_count = 0
             st.rerun()
     with c2:
-        if st.button("🔄 Upload New File", use_container_width=True):
+        if st.button("🔄 Upload New File", use_container_width=True, key="upload_new_btn"):
             reset_all()
             st.rerun()
     with c3:
-        if st.button("🤖 Regenerate Summary", use_container_width=True):
+        if st.button("🤖 Regenerate Summary", use_container_width=True, key="regen_summary_btn"):
             with st.spinner("Generating..."):
                 generate_ai_summary()
                 st.rerun()
