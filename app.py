@@ -529,10 +529,9 @@ def load_css():
         transform: scale(0.9) !important;
     }
                 
-    /* ── Premium Action Button (Generate PDF) ── */
-     [data-testid="stButton"] button[key="gen_pdf_btn"],
-     [data-testid="stButton"] button[key="download_pdf_btn"],
-     [data-testid="stButton"] button[key="download_cleaned_csv"] {
+    /* ── Premium Action Buttons (Generate PDF, Download PDF, Download CSV, Download Cleaned) ── */
+     div[data-testid="stButton"] button[kind="primary"],
+     div[data-testid="stButton"] button[kind="secondary"] {
          background: linear-gradient(135deg, #667eea, #764ba2) !important;
          border: none !important;
          border-radius: 14px !important;
@@ -543,13 +542,45 @@ def load_css():
          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
      }
      
-     [data-testid="stButton"] button[key="gen_pdf_btn"]:hover,
-     [data-testid="stButton"] button[key="download_pdf_btn"]:hover,
-     [data-testid="stButton"] button[key="download_cleaned_csv"]:hover,
-     [data-testid="stButton"] button[key="download_csv_btn"]:hover {
+     div[data-testid="stButton"] button[kind="primary"]:hover,
+     div[data-testid="stButton"] button[kind="secondary"]:hover {
          transform: translateY(-2px) !important;
          box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5) !important;
          background: linear-gradient(135deg, #764ba2, #667eea) !important;
+     }
+
+     /* ── Premium Toggle Switch Styling ── */
+     [data-testid="stToggle"] div[role="switch"] {
+         background: rgba(255, 255, 255, 0.1) !important;
+         border: 1px solid rgba(255, 255, 255, 0.2) !important;
+         transition: all 0.3s ease !important;
+     }
+     [data-testid="stToggle"] div[aria-checked="true"] {
+         background: linear-gradient(135deg, #667eea, #764ba2) !important;
+         box-shadow: 0 0 15px rgba(102, 126, 234, 0.5) !important;
+     }
+     [data-testid="stToggle"] div[role="switch"] > div {
+         background: white !important;
+         border: none !important;
+         transition: transform 0.3s ease !important;
+     }
+
+     div[data-testid="stButton"] button[type="secondary"] {
+         background: rgba(255,255,255,0.06) !important;
+         backdrop-filter: blur(10px);
+         border: 1px solid rgba(255,255,255,0.1) !important;
+         color: #e2e8f0 !important;
+         border-radius: 12px !important;
+         font-family: 'Inter', sans-serif !important;
+         font-size: 0.85rem !important;
+         transition: all 0.3s ease !important;
+     }
+     
+     div[data-testid="stButton"] button[type="secondary"]:hover {
+         background: rgba(102, 126, 234, 0.15) !important;
+         border-color: rgba(102, 126, 234, 0.4) !important;
+         transform: translateY(-1px) !important;
+         box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2) !important;
      }
 
      /* ── Premium Stats Card ── */
@@ -594,6 +625,25 @@ def load_css():
          border-color: rgba(102, 126, 234, 0.4) !important;
          transform: translateY(-1px) !important;
          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2) !important;
+     }
+
+     /* ── Chat Suggestion Buttons ── */
+     .stButton > button[key^="quick_"],
+     .stButton > button[key^="sug_"] {
+         background: rgba(255,255,255,0.04) !important;
+         backdrop-filter: blur(10px);
+         border: 1px solid rgba(255,255,255,0.08) !important;
+         color: #e2e8f0 !important;
+         border-radius: 12px !important;
+         font-size: 0.85rem !important;
+         transition: all 0.3s ease !important;
+     }
+     
+     .stButton > button[key^="quick_"]:hover,
+     .stButton > button[key^="sug_"]:hover {
+         background: rgba(102, 126, 234, 0.12) !important;
+         border-color: rgba(102, 126, 234, 0.4) !important;
+         transform: translateY(-1px) !important;
      }
 
      /* ── Premium Selectbox Styling ── */
