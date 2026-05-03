@@ -2346,8 +2346,7 @@ def render_join_tab():
                         {card["name"]}
                     </p>
                     <p style='color:rgba(255,255,255,0.45);font-size:0.78rem;margin:0.25rem 0 0;'>
-                        {card["rows"]:,} rows × {card["cols"]} cols
-                        {f"· {card.get('size_mb',0):.1f} MB" if not card["is_primary"] else ""}
+                        {card["rows"]:,} rows × {card["cols"]} cols {f"· {card.get('size_mb',0):.1f} MB" if not card["is_primary"] else ""}
                     </p>
                 </div>
                 """, unsafe_allow_html=True)
