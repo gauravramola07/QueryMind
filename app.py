@@ -1999,171 +1999,96 @@ def render_settings_tab():
 
         st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
 
-        # ── Premium custom toggle — replaces st.toggle which can't be deeply styled ──
-        # Pattern: hidden st.checkbox owns the real value; HTML/JS renders the
-        # premium visual and clicks the hidden checkbox on user interaction.
-        _sql_on = st.session_state.get('show_sql', True)
-
-        # Unique IDs so multiple toggles on the same page don't conflict
-        _tid  = 'sql_toggle'
-        _chk  = 'show_sql_hidden_chk'
-
-        st.markdown(f"""
+        # ── CSS injected separately (plain string, no f-string, no {} escaping issues) ──
+        st.markdown("""
         <style>
-        /* ── Premium toggle card ── */
-        .qm-toggle-wrap {{
+        .qm-toggle-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: rgba(26, 26, 62, 0.7);
-            border: 1px solid rgba(102, 126, 234, 0.25);
+            background: rgba(26,26,62,0.7);
+            border: 1px solid rgba(102,126,234,0.25);
             border-radius: 14px;
-            padding: 14px 18px;
-            backdrop-filter: blur(12px);
-            cursor: pointer;
-            user-select: none;
-            transition: border-color 0.25s ease, box-shadow 0.25s ease;
-            margin-bottom: 2px;
-        }}
-        .qm-toggle-wrap:hover {{
-            border-color: rgba(102, 126, 234, 0.55);
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }}
-        .qm-toggle-label {{
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }}
-        .qm-toggle-label-main {{
-            color: #e2e8f0;
-            font-size: 0.93rem;
-            font-weight: 500;
-            letter-spacing: 0.1px;
-        }}
-        .qm-toggle-label-sub {{
-            color: #718096;
-            font-size: 0.75rem;
-        }}
-        /* The track */
-        .qm-track {{
-            position: relative;
-            width: 52px;
-            height: 28px;
-            border-radius: 100px;
-            background: rgba(45, 55, 72, 0.9);
-            border: 1.5px solid rgba(100, 100, 140, 0.4);
-            transition: background 0.3s ease, border-color 0.3s ease,
-                        box-shadow 0.3s ease;
-            flex-shrink: 0;
-        }}
-        .qm-track.on {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-color: #667eea;
-            box-shadow: 0 0 14px rgba(102, 126, 234, 0.5),
-                        inset 0 1px 0 rgba(255,255,255,0.15);
-        }}
-        /* The knob */
-        .qm-knob {{
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #ffffff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.35),
-                        0 0 0 1px rgba(255,255,255,0.1);
-            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        box-shadow 0.3s ease;
-        }}
-        .qm-track.on .qm-knob {{
-            transform: translateX(24px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3),
-                        0 0 6px rgba(102, 126, 234, 0.4);
-        }}
-        /* Status badge next to the label */
-        .qm-badge {{
-            display: inline-block;
-            font-size: 0.68rem;
-            font-weight: 600;
-            padding: 1px 7px;
-            border-radius: 20px;
-            letter-spacing: 0.3px;
-        }}
-        .qm-badge.on  {{ background:rgba(72,187,120,0.15); color:#48bb78; }}
-        .qm-badge.off {{ background:rgba(160,174,192,0.12); color:#718096; }}
+            padding: 13px 16px;
+            margin-bottom: 4px;
+        }
+        .qm-toggle-info { display:flex; flex-direction:column; gap:3px; }
+        .qm-toggle-title { color:#e2e8f0; font-size:0.92rem; font-weight:500; }
+        .qm-toggle-sub   { color:#718096; font-size:0.74rem; }
+        .qm-pill-on  { display:inline-block; font-size:0.68rem; font-weight:600;
+                        padding:2px 8px; border-radius:20px; margin-left:6px;
+                        background:rgba(72,187,120,0.15); color:#48bb78; }
+        .qm-pill-off { display:inline-block; font-size:0.68rem; font-weight:600;
+                        padding:2px 8px; border-radius:20px; margin-left:6px;
+                        background:rgba(160,174,192,0.1); color:#718096; }
+        .qm-switch-on  { display:flex; align-items:center; justify-content:flex-end;
+                          width:52px; height:28px; border-radius:100px; padding:0 4px;
+                          background:linear-gradient(135deg,#667eea,#764ba2);
+                          box-shadow:0 0 12px rgba(102,126,234,0.45); }
+        .qm-switch-off { display:flex; align-items:center; justify-content:flex-start;
+                          width:52px; height:28px; border-radius:100px; padding:0 4px;
+                          background:rgba(45,55,72,0.9);
+                          border:1.5px solid rgba(100,100,140,0.4); }
+        .qm-knob { width:20px; height:20px; border-radius:50%; background:#fff;
+                   box-shadow:0 2px 6px rgba(0,0,0,0.35); flex-shrink:0; }
+        /* Hide Streamlit button borders for the toggle button */
+        div[data-testid="stButton"].qm-toggle-btn > button {
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            width: 100% !important;
+        }
         </style>
-
-        <div class="qm-toggle-wrap" id="{_tid}_wrap"
-             onclick="(function(){{
-                 var chk = window.parent.document.querySelector(
-                     'input[aria-label=\\'show_sql_real_toggle\\']'
-                 );
-                 if(!chk) {{
-                     var iframes = window.parent.document.querySelectorAll('iframe');
-                     for(var i=0;i<iframes.length;i++){{
-                         try{{
-                             chk = iframes[i].contentDocument.querySelector(
-                                 'input[type=\\'checkbox\\']'
-                             );
-                             if(chk) break;
-                         }}catch(e){{}}
-                     }}
-                 }}
-                 var track = document.getElementById('{_tid}_track');
-                 var badge = document.getElementById('{_tid}_badge');
-                 var sub   = document.getElementById('{_tid}_sub');
-                 var isOn  = track.classList.contains('on');
-                 if(isOn){{
-                     track.classList.remove('on');
-                     badge.className='qm-badge off'; badge.textContent='OFF';
-                     sub.textContent='SQL queries hidden in results';
-                 }} else {{
-                     track.classList.add('on');
-                     badge.className='qm-badge on'; badge.textContent='ON';
-                     sub.textContent='SQL queries shown in results';
-                 }}
-                 if(chk) chk.click();
-             }})()">
-
-            <div class="qm-toggle-label">
-                <span class="qm-toggle-label-main">
-                    🔍 Show SQL Queries
-                    &nbsp;<span id="{_tid}_badge"
-                        class="qm-badge {'on' if _sql_on else 'off'}">
-                        {'ON' if _sql_on else 'OFF'}
-                    </span>
-                </span>
-                <span class="qm-toggle-label-sub" id="{_tid}_sub">
-                    {'SQL queries shown in results' if _sql_on else 'SQL queries hidden in results'}
-                </span>
-            </div>
-
-            <div class="qm-track {'on' if _sql_on else ''}" id="{_tid}_track">
-                <div class="qm-knob"></div>
-            </div>
-        </div>
         """, unsafe_allow_html=True)
 
-        # Hidden real checkbox — drives actual session state
-        _new_val = st.checkbox(
-            "show_sql_real_toggle",
-            value=_sql_on,
-            key=_chk,
-            label_visibility="hidden",
-        )
-        st.session_state.show_sql = _new_val
+        # ── Toggle state lives entirely in session_state.show_sql ──
+        # A native st.button triggers the flip + rerun. The visual is pure HTML
+        # rendered from the current state — no JS cross-frame hacks needed.
+        _sql_on = st.session_state.get('show_sql', True)
 
-        # Hide the ugly native checkbox visually (keep it in DOM for JS click target)
+        _track_cls  = "qm-switch-on"  if _sql_on else "qm-switch-off"
+        _pill_cls   = "qm-pill-on"    if _sql_on else "qm-pill-off"
+        _pill_txt   = "ON"            if _sql_on else "OFF"
+        _sub_txt    = "SQL shown in chat results" if _sql_on else "SQL hidden from results"
+        _icon       = "🔍"            if _sql_on else "🔇"
+
+        # Render the visual card (display only — not interactive itself)
+        st.markdown(
+            '<div class="qm-toggle-row">'
+              '<div class="qm-toggle-info">'
+                f'<span class="qm-toggle-title">{_icon} Show SQL Queries'
+                  f'<span class="{_pill_cls}">{_pill_txt}</span>'
+                '</span>'
+                f'<span class="qm-toggle-sub">{_sub_txt}</span>'
+              '</div>'
+              f'<div class="{_track_cls}"><div class="qm-knob"></div></div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+        # The real clickable control — a Streamlit button that flips state
+        if st.button(
+            "Toggle SQL display",
+            key="toggle_sql_btn",
+            use_container_width=True,
+            help="Click to toggle SQL query visibility in chat results",
+        ):
+            st.session_state.show_sql = not _sql_on
+            st.rerun()
+
+        # Style the toggle button to look minimal under the card
         st.markdown("""
         <style>
-        /* Push the hidden checkbox out of sight but keep it clickable by JS */
-        div[data-testid="stCheckbox"]:has(input[aria-label="show_sql_real_toggle"]) {
-            opacity: 0 !important;
-            height: 0 !important;
-            overflow: hidden !important;
-            margin: 0 !important;
-            padding: 0 !important;
+        div[data-testid="stButton"]:has(button[data-testid="baseButton-secondary"][title*="Toggle SQL"]) button,
+        div[data-testid="stButton"]:has(button[kind="secondary"]) button {
+            margin-top: -4px !important;
+            font-size: 0.78rem !important;
+            color: rgba(102,126,234,0.7) !important;
+            background: transparent !important;
+            border: 1px dashed rgba(102,126,234,0.25) !important;
+            border-radius: 8px !important;
+            padding: 4px !important;
         }
         </style>
         """, unsafe_allow_html=True)
