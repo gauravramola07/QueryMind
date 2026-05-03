@@ -45,7 +45,7 @@ from utils.helpers import (
 # ─────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="QueryMind — Talk to Your Data",
+    page_title="QueryMind - Talk to Your Data",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -1362,7 +1362,7 @@ def render_overview_tab():
 # ─────────────────────────────────────────────
 
 def render_visual_analytics_tab():
-    st.markdown("<p class='section-glass'>📈 Automated Visual Analytics</p>", unsafe_allow_html=True)
+    st.markdown("<p class='section-title'>📈 Automated Visual Analytics</p>", unsafe_allow_html=True)
     st.markdown("""
     <p style='color:rgba(255,255,255,0.6); margin-bottom: 2rem; max-width: 800px;'>
         These smart visualizations were automatically generated based on your data schema. 

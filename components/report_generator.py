@@ -86,16 +86,16 @@ class _Doc(BaseDocTemplate):
         canv.setFillColor(PURPLE)
         canv.rect(0, h - 3, w, 3, fill=1, stroke=0)
 
-        # Header text
+        # Header text (sits 1.5cm from top to avoid overlap with 3cm margin)
         canv.setFont('Helvetica', 7.5)
         canv.setFillColor(TEXT_MUT)
-        canv.drawString(doc.leftMargin, h - 1*cm, 'QueryMind Analytics Report')
-        canv.drawRightString(w - doc.rightMargin, h - 1*cm, self._dataset)
+        canv.drawString(doc.leftMargin, h - 1.5*cm, 'QueryMind Analytics Report')
+        canv.drawRightString(w - doc.rightMargin, h - 1.5*cm, self._dataset)
 
         # Header rule
         canv.setStrokeColor(BORDER)
         canv.setLineWidth(0.4)
-        canv.line(doc.leftMargin, h - 1.15*cm, w - doc.rightMargin, h - 1.15*cm)
+        canv.line(doc.leftMargin, h - 1.65*cm, w - doc.rightMargin, h - 1.65*cm)
 
         # Footer
         canv.line(doc.leftMargin, 1.4*cm, w - doc.rightMargin, 1.4*cm)
@@ -270,7 +270,7 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
         buf, dataset_name=file_name,
         pagesize=A4,
         leftMargin=2*cm, rightMargin=2*cm,
-        topMargin=2.2*cm, bottomMargin=2*cm,
+        topMargin=3.0*cm, bottomMargin=2.2*cm,
     )
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -432,6 +432,7 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
     charts_added = 0
 
     # Try Plotly figures first (needs kaleido installed in app env)
+    # Each figure is tried individually; failures fall through to matplotlib
     if figures:
         for fig in figures[:4]:
             img = _plotly_image(fig, usable_w)
@@ -440,25 +441,35 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
                 story.append(Spacer(1, 0.35*cm))
                 charts_added += 1
 
-    # ── FIX 3: Matplotlib fallback if no Plotly charts rendered ──────────────
-    if charts_added == 0:
-        story.append(Paragraph(
-            'Generating charts from dataset…', st['muted']
-        ))
-        story.append(Spacer(1, 0.2*cm))
+    # ── Matplotlib fallback: always run when plotly produced fewer than 2 charts ──
+    # This ensures the Visual Analytics page is NEVER empty, even when kaleido
+    # is missing or returns None for every figure.
+    if charts_added < 2:
+        if charts_added == 0:
+            story.append(Paragraph(
+                'Generating charts from dataset…', st['muted']
+            ))
+            story.append(Spacer(1, 0.2*cm))
 
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         cat_cols     = df.select_dtypes(include=['object', 'category']).columns.tolist()
 
         chart_specs = []
-        # Chart 1: top category breakdown (if any cat column exists)
+        # Chart 1: top-N category breakdown
         if cat_cols and numeric_cols:
             chart_specs.append((f'{numeric_cols[0]} by {cat_cols[0]}', df))
-        # Chart 2: distribution of second numeric col
+        # Chart 2: distribution of first numeric col
+        if numeric_cols:
+            chart_specs.append((f'Distribution of {numeric_cols[0]}', df))
+        # Chart 3: distribution of second numeric col (if available)
         if len(numeric_cols) >= 2:
             chart_specs.append((f'Distribution of {numeric_cols[1]}', df))
+        # Chart 4: second category × second numeric
+        if len(cat_cols) >= 2 and len(numeric_cols) >= 2:
+            chart_specs.append((f'{numeric_cols[1]} by {cat_cols[1]}', df))
 
-        for title, data in chart_specs[:2]:
+        needed = 4 - charts_added   # fill up to 4 total charts
+        for title, data in chart_specs[:needed]:
             img = _matplotlib_chart(data, title, usable_w)
             if img:
                 story.append(img)
