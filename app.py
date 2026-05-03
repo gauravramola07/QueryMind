@@ -39,9 +39,7 @@ from components.chart_generator import (
     generate_chart, create_kpi_dashboard,
     get_chart_type_options
 )
-from components.multi_file_joiner import (
-    detect_joinable_columns, merge_dataframes, score_badge
-)
+
 from utils.helpers import (
     detect_column_categories, generate_smart_schema,
     generate_smart_suggestions, get_data_health_score,
