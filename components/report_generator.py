@@ -18,7 +18,7 @@ from reportlab.lib.units import cm
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.platypus import (
     SimpleDocTemplate, PageBreak, Paragraph, Spacer,
-    Table, TableStyle, HRFlowable, Image, BaseDocTemplate,
+    Table, TableStyle, HRFlowable, Image,
     Frame, PageTemplate
 )
 from reportlab.graphics.shapes import Drawing, Rect, String, Line
@@ -229,8 +229,8 @@ def _draw_cover_content(canv, fi, health):
         tbl_h    = n * row_h
 
         # Cap table height to prevent footer overlap
-        footer_y = BM + 0.5 * cm  # Footer position from bottom
-        max_height = (PH - 4.5 * cm) - footer_y  # Space between content start and footer
+        footer_y = BM + 0.5 * cm
+        max_height = (PH - 4.5 * cm) - footer_y
         if tbl_h > max_height:
             row_h = max_height / n
             tbl_h = n * row_h
@@ -538,10 +538,11 @@ def _add_charts(story, df, sty, figures=None):
 
 def generate_pdf_report(df, fi, health, kpis, data_summary,
                          cleaning_report=None, figures=None,
+                         chat_history=None,
                          file_name='dataset'):
 
-    buf    = io.BytesIO()
-    sty    = _styles()
+    buf     = io.BytesIO()
+    sty     = _styles()
     fi_name = fi.get('file_name', file_name)
 
     # ── Closures capture fi/health for page 1 ────────────────────────────────
@@ -658,6 +659,31 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
             cr_rows, UW,
             col_widths=[3*cm,2.5*cm,2.5*cm,2*cm,4.5*cm,1.5*cm], fsz=7,
         ))
+
+    # ══ PAGE 6: Chat Session Transcript ═══════════════════════════════════════
+    # FIX: was indented 5 spaces (inside if cleaning_report block by mistake).
+    # Correctly placed at the same level as all other PAGE sections (4 spaces).
+    if chat_history:
+        story.append(PageBreak())
+        story.append(Paragraph('AI Chat Session Transcript', sty['h2']))
+        story.append(HRFlowable(width=UW, thickness=0.4,
+                                color=C_BORDER, spaceAfter=8))
+        for i, msg in enumerate(chat_history[:20]):  # cap at 20 Q&As
+            # Question
+            q_text = f"Q{i+1}: {msg.get('question', '')}"
+            story.append(Paragraph(q_text, sty['body']))
+
+            # SQL (if present) — shown in muted style so it's visually distinct
+            if msg.get('sql_query'):
+                sql_text = f"SQL: {msg['sql_query']}"
+                story.append(Paragraph(sql_text, sty['muted']))
+
+            # Answer / explanation
+            a_text = f"A: {msg.get('explanation', '')}"
+            story.append(Paragraph(a_text, sty['body']))
+
+            # Spacer between each Q&A pair
+            story.append(Spacer(1, 0.2*cm))
 
     # ══ LAST PAGE: Column Schema ═══════════════════════════════════════════════
     story.append(PageBreak())

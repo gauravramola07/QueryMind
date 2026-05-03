@@ -1186,7 +1186,7 @@ def handle_file_upload(uploaded_file):
 
 def initialize_llm():
     with st.spinner("🤖 Connecting AI..."):
-        r = setup_gemini()
+        r = setup_llm()
         if r['success']:
             st.session_state.llm_model = r['model']
             st.session_state.llm_ready = True
@@ -2698,8 +2698,12 @@ def render_refinement_tab():
 
                         # 6. Sync the SQL database
                         reset_database()
-                        load_dataframe_to_db(cleaned_df)
-                        st.session_state.db_loaded = True  # explicit — reset_database() sets it False internally
+                        db_result = load_dataframe_to_db(cleaned_df)
+                        if db_result['success']:
+                            st.session_state.db_loaded = True
+                        else:
+                            st.session_state.db_loaded = False
+                            st.error(f"⚠️ Database reload failed: {db_result['message']}")
 
                         st.success("🎉 Data Healed! Refreshing...")
                         _rerun = True

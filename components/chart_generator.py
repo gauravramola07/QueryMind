@@ -119,6 +119,9 @@ def detect_chart_type(result_df, question):
         'daily', 'growth', 'timeline', 'by month',
         'by year', 'by date'
     ]):
+            # Prefer area for cumulative/filled questions, else line
+        if any(w in question_lower for w in ['area', 'cumulative', 'filled', 'stacked']):
+            return 'area'
         return 'line'
 
     if any(w in question_lower for w in [
@@ -706,12 +709,14 @@ def format_col_name(col_name):
 
 
 def format_number(value):
-    if value >= 1_000_000_000:
-        return f"{value/1_000_000_000:.1f}B"
-    elif value >= 1_000_000:
-        return f"{value/1_000_000:.1f}M"
-    elif value >= 1_000:
-        return f"{value/1_000:.1f}K"
+    abs_val = abs(value)
+    sign = "-" if value < 0 else ""
+    if abs_val >= 1_000_000_000:
+        return f"{sign}{abs_val/1_000_000_000:.1f}B"
+    elif abs_val >= 1_000_000:
+        return f"{sign}{abs_val/1_000_000:.1f}M"
+    elif abs_val >= 1_000:
+        return f"{sign}{abs_val/1_000:.1f}K"
     return f"{value:,.0f}"
 
 

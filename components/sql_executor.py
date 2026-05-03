@@ -10,6 +10,7 @@ import sqlite3
 import re
 import os
 import sys
+import threading
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
@@ -19,7 +20,7 @@ import config
 # ─────────────────────────────────────────────
 _conn = None
 _current_df = None
-
+_db_lock = threading.Lock() 
 
 # ─────────────────────────────────────────────
 # MAIN FUNCTION 1: Load DataFrame into SQLite
@@ -31,6 +32,7 @@ def load_dataframe_to_db(df):
     Uses a persistent connection stored globally
     """
     global _conn, _current_df
+    with _db_lock:   
 
     try:
         print(f"🗄️ Loading DataFrame into SQLite...")
@@ -91,6 +93,7 @@ def execute_sql_query(sql_query):
     Execute SQL query - auto-reloads DB if needed
     """
     global _conn, _current_df
+    with _db_lock:   
 
     # ── Auto-reload if connection lost ─────────
     if _conn is None:
@@ -357,3 +360,4 @@ def get_sample_query_results():
     if result['success']:
         return {'preview': result['dataframe']}
     return None
+

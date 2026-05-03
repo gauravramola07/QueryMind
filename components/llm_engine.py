@@ -24,7 +24,7 @@ _groq_client = None
 # SETUP GROQ
 # ─────────────────────────────────────────────
 
-def setup_gemini():
+def setup_llm():
     """
     Initialize Groq AI Client
     Named setup_gemini() for compatibility with existing code
@@ -467,7 +467,7 @@ def parse_llm_response(response_text):
 # HELPER FUNCTION 2: Test Connection
 # ─────────────────────────────────────────────
 
-def test_gemini_connection(model):
+def test_llm_connection(model):
     """
     Test if Groq API is working
     

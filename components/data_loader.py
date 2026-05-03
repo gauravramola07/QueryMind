@@ -199,6 +199,12 @@ def clean_dataframe(df):
     df.columns = df.columns.str.replace(' ', '_')
     df.columns = df.columns.str.replace('[^a-zA-Z0-9_]', '', regex=True)
     df.columns = df.columns.str.lower()
+
+    # CRITICAL: Replace empty or whitespace-only column names with a placeholder
+    df.columns = [
+        col if col.strip() else f"col_{i}"
+        for i, col in enumerate(df.columns)
+    ]   
     
     # Handle duplicate column names
     cols = pd.Series(df.columns)

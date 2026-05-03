@@ -28,12 +28,12 @@ def auto_clean_data(df, llm_fn=None):
     if llm_fn:
         # If AI is connected, use the smart imputer first
         new_df = ai_smart_impute(new_df, llm_fn)
-        
+
     # Catch-all for remaining text columns (or if AI wasn't passed)
     char_cols = new_df.select_dtypes(include=['object', 'category']).columns
     for col in char_cols:
         new_df[col] = new_df[col].fillna("Unknown").astype(str).str.strip()
-        
+
         # Fix inconsistent price/currency formatting
         if any(x in col.lower() for x in ['price', 'cost', 'amount', 'fee', 'revenue']):
             cleaned_num = (
@@ -54,7 +54,8 @@ def auto_clean_data(df, llm_fn=None):
     for col in new_df.select_dtypes(include=['object']).columns:
         if any(x in col.lower() for x in ['date', 'time', 'created', 'updated', 'timestamp']):
             try:
-                parsed = pd.to_datetime(new_df[col], errors='coerce', infer_datetime_format=True)
+                # FIX: removed deprecated infer_datetime_format=True (removed in Pandas 2.2+)
+                parsed = pd.to_datetime(new_df[col], errors='coerce')
                 if parsed.notna().sum() / len(new_df) > 0.7:
                     new_df[col] = parsed.ffill().bfill()
             except Exception:
@@ -164,19 +165,24 @@ def generate_cleaning_report(df_before, df_after):
 
 def ai_smart_impute(df, llm_fn):
     """
-    Uses AI to infer and fill missing categorical/text values 
+    Uses AI to infer and fill missing categorical/text values
     based on the context of the other columns in the same row.
+
+    ENHANCEMENT: Sends all missing rows for a column in a single
+    batched API call instead of one call per row. This reduces
+    wait time from ~N seconds to ~2 seconds regardless of how
+    many rows need filling (up to the 50-null cap).
     """
     new_df = df.copy()
-    
+
     # Find columns that are text/categorical and have missing values
     text_cols_with_nulls = [
-        col for col in new_df.select_dtypes(include=['object', 'category']).columns 
+        col for col in new_df.select_dtypes(include=['object', 'category']).columns
         if new_df[col].isnull().sum() > 0
     ]
-    
+
     if not text_cols_with_nulls:
-        return new_df # Nothing to impute
+        return new_df  # Nothing to impute
 
     # Limit to a maximum number of rows to avoid massive API delays/costs
     # We will only AI-impute if there are fewer than 50 missing rows total
@@ -192,32 +198,46 @@ def ai_smart_impute(df, llm_fn):
         # Get the rows where this specific column is missing
         missing_mask = new_df[target_col].isnull()
         rows_to_fix = new_df[missing_mask]
-        
-        for index, row in rows_to_fix.iterrows():
-            # Convert the row (excluding the missing target) to a JSON string for context
-            context_data = row.drop(target_col).dropna().to_dict()
-            
-            prompt = f"""
-            You are a data cleaning assistant. 
-            I have a row of dataset where the column '{target_col}' is missing.
-            
-            Here is the rest of the data in that row:
-            {json.dumps(context_data, indent=2)}
-            
-            Based on this context, what is the most logical value for '{target_col}'?
-            Reply ONLY with the best guess value. Do not include quotes, explanations, or periods.
-            If you absolutely cannot guess, reply with "Unknown".
-            """
-            
-            try:
-                # Call your LLM
-                ai_guess = llm_fn(prompt).strip()
-                # Clean up the response just in case the LLM added quotes
-                ai_guess = ai_guess.strip("'\"") 
-                
-                # Apply the fix
-                new_df.at[index, target_col] = ai_guess
-            except Exception:
+
+        # ── BATCHED AI CALL: send ALL missing rows in one request ──────────
+        # Drops the target column so the LLM only sees the context columns.
+        # Converts to JSON so the LLM can see each row as a structured object.
+        rows_json = rows_to_fix.drop(columns=[target_col]).to_json(
+            orient='records', indent=2, default_handler=str
+        )
+
+        prompt = f"""You are a data cleaning assistant.
+The column '{target_col}' is missing for the rows below.
+
+{rows_json}
+
+Return ONLY a valid JSON array of strings — one value per row, in the same order.
+Each string is your best guess for the missing '{target_col}' value.
+If you cannot guess a value, use "Unknown".
+Do NOT include any explanation, markdown, or extra text. Just the JSON array.
+Example output: ["Electronics", "Unknown", "Furniture"]"""
+
+        try:
+            raw_response = llm_fn(prompt).strip()
+
+            # Strip markdown fences the LLM may add (```json ... ```)
+            raw_response = raw_response.strip("```").replace("json", "", 1).strip()
+
+            guesses = json.loads(raw_response)
+
+            # Safety: if LLM returned fewer values than rows, pad with "Unknown"
+            indices = list(rows_to_fix.index)
+            for i, index in enumerate(indices):
+                if i < len(guesses):
+                    val = str(guesses[i]).strip().strip("'\"").strip()
+                    # FIX: guard against empty string after stripping
+                    new_df.at[index, target_col] = val if val else "Unknown"
+                else:
+                    new_df.at[index, target_col] = "Unknown"
+
+        except Exception:
+            # If LLM response is unparseable, fall back to "Unknown" for all rows
+            for index in rows_to_fix.index:
                 new_df.at[index, target_col] = "Unknown"
-                
+
     return new_df
