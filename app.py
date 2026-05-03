@@ -34,6 +34,9 @@ from components.chart_generator import (
     generate_chart, create_kpi_dashboard,
     get_chart_type_options
 )
+from components.multi_file_joiner import (
+    detect_joinable_columns, merge_dataframes, score_badge
+)
 from utils.helpers import (
     detect_column_categories, generate_smart_schema,
     generate_smart_suggestions, get_data_health_score,
@@ -1047,6 +1050,14 @@ def init_session_state():
         'cleaning_report': None,   # before/after diff from generate_cleaning_report()
         'pdf_report': None,        # raw bytes of last generated PDF
         'pdf_report_name': None,   # filename for the download button
+        # ── Join feature ──────────────────────────────────────────────────
+        'df2':                None,   # second uploaded DataFrame
+        'file_info2':         None,   # file_info for second file
+        'current_file2_name': None,   # filename of second upload
+        'join_candidates':    None,   # ranked list from detect_joinable_columns
+        'merged_df':          None,   # result of merge_dataframes
+        'df_original':        None,   # backup of primary df before merge
+        'using_merged':       False,  # True → chat/SQL use merged_df
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -1111,7 +1122,12 @@ def render_header():
 def render_navbar():
     ai_dot = "green" if st.session_state.llm_ready else "red"
     ai_text = "Connected" if st.session_state.llm_ready else "Offline"
-    file_text = st.session_state.file_info['file_name'] if st.session_state.file_uploaded else "No file"
+
+    if st.session_state.file_uploaded:
+        base_name = st.session_state.file_info['file_name']
+        file_text = f"{base_name} ⋈ Merged" if st.session_state.get('using_merged') else base_name
+    else:
+        file_text = "No file"
 
     st.markdown(f"""
     <div class='nav-bar'>
@@ -1249,17 +1265,18 @@ def render_dashboard():
     render_kpi_row()
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Define all 6 tabs in the new requested order
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    # Define all 8 tabs — new "Join & Merge" tab added at position 6
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📊 Data Overview",
         "📈 Visual Analytics",
         "🔍 Data Preview",
         "📋 Schema Info",
         "✨ AI Refinement",
-        "💬 Chat & Analysis",  # <--- Moved to second-to-last
-        "⚙️ Settings"
+        "🔗 Join & Merge",      # ← NEW: multi-file join feature
+        "💬 Chat & Analysis",
+        "⚙️ Settings",
     ])
-    
+
     # Route each tab to its correct function
     with tab1:
         render_overview_tab()
@@ -1272,8 +1289,10 @@ def render_dashboard():
     with tab5:
         render_refinement_tab()
     with tab6:
-        render_chat_section()   # <--- Renders the chat here now
+        render_join_tab()           # ← NEW
     with tab7:
+        render_chat_section()
+    with tab8:
         render_settings_tab()
 
 
@@ -2126,6 +2145,342 @@ def render_settings_tab():
                 generate_ai_summary()
                 st.rerun()
 
+def render_join_tab():
+    """
+    Multi-file Upload + Auto Join Detection Tab.
+
+    Flow:
+      1. Upload a second CSV/XLSX
+      2. detect_joinable_columns() scores all column pairs
+      3. User picks columns + join type → live preview → Apply
+      4. On Apply: st.session_state.df ← merged; SQL DB reloaded; schema updated
+      5. Revert button restores the original single-file state
+    """
+    st.markdown(
+        "<p class='section-title'>🔗 Multi-File Join & Merge</p>",
+        unsafe_allow_html=True,
+    )
+
+    df1 = st.session_state.df
+    fi1 = st.session_state.file_info
+    if df1 is None:
+        st.info("Upload a primary file first.")
+        return
+
+    # ── Active-merge status banner ────────────────────────────────────────────
+    if st.session_state.get("using_merged"):
+        merged = st.session_state.merged_df
+        st.markdown(f"""
+        <div style='background:rgba(72,187,120,0.12);border:1px solid rgba(72,187,120,0.35);
+                    border-radius:14px;padding:1rem 1.4rem;margin-bottom:1.2rem;
+                    display:flex;align-items:center;gap:1rem;'>
+            <span style='font-size:1.6rem;'>✅</span>
+            <div>
+                <p style='color:#48bb78;font-weight:700;margin:0;font-size:0.95rem;'>
+                    Merged Dataset Active
+                </p>
+                <p style='color:rgba(255,255,255,0.55);font-size:0.82rem;margin:0.2rem 0 0;'>
+                    Chat &amp; SQL are running on the combined dataset —
+                    {merged.shape[0]:,} rows × {merged.shape[1]} columns
+                </p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button("↩️ Revert to Original Dataset", key="revert_merge_btn"):
+            orig = st.session_state.get("df_original")
+            if orig is not None:
+                cats   = detect_column_categories(orig)
+                schema = generate_smart_schema(orig, fi1, cats)
+                kpis   = get_all_kpis(orig, fi1)
+                sugs   = generate_smart_suggestions(orig, fi1, cats)
+                reset_database()
+                load_dataframe_to_db(orig)
+                st.session_state.update({
+                    "df": orig, "schema": schema, "column_categories": cats,
+                    "kpis": kpis["kpis"], "suggestions": sugs,
+                    "using_merged": False, "merged_df": None,
+                    "db_loaded": True, "chat_history": [],
+                    "query_count": 0, "data_summary": None,
+                })
+                st.success("✅ Reverted to original dataset.")
+                st.rerun()
+        st.divider()
+
+    # ── Primary + second file summary cards ──────────────────────────────────
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown(f"""
+        <div class='glass-card' style='padding:1rem;'>
+            <p style='color:#a78bfa;font-size:0.75rem;font-weight:700;
+                      letter-spacing:0.8px;text-transform:uppercase;margin:0 0 0.5rem;'>
+                📄 Primary File
+            </p>
+            <p style='color:#f7fafc;font-weight:700;margin:0;font-size:1rem;'>
+                {fi1.get('file_name','dataset')}
+            </p>
+            <p style='color:rgba(255,255,255,0.45);font-size:0.82rem;margin:0.3rem 0 0;'>
+                {df1.shape[0]:,} rows × {df1.shape[1]} columns
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_b:
+        fi2 = st.session_state.get("file_info2")
+        df2 = st.session_state.get("df2")
+        if fi2 and df2 is not None:
+            st.markdown(f"""
+            <div class='glass-card' style='padding:1rem;border:1px solid rgba(72,187,120,0.3);'>
+                <p style='color:#48bb78;font-size:0.75rem;font-weight:700;
+                          letter-spacing:0.8px;text-transform:uppercase;margin:0 0 0.5rem;'>
+                    ✅ Second File Loaded
+                </p>
+                <p style='color:#f7fafc;font-weight:700;margin:0;font-size:1rem;'>
+                    {fi2.get('file_name','file2')}
+                </p>
+                <p style='color:rgba(255,255,255,0.45);font-size:0.82rem;margin:0.3rem 0 0;'>
+                    {df2.shape[0]:,} rows × {df2.shape[1]} columns
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class='glass-card' style='padding:1rem;border:2px dashed rgba(102,126,234,0.3);'>
+                <p style='color:#a78bfa;font-size:0.75rem;font-weight:700;
+                          letter-spacing:0.8px;text-transform:uppercase;margin:0 0 0.5rem;'>
+                    📄 Second File
+                </p>
+                <p style='color:rgba(255,255,255,0.4);font-size:0.85rem;margin:0;'>
+                    Upload below →
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ── Uploader ──────────────────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(
+        "<p class='section-title' style='font-size:0.9rem;'>📤 Upload Second Dataset</p>",
+        unsafe_allow_html=True,
+    )
+    uploaded2 = st.file_uploader(
+        "Second file",
+        type=["csv", "xlsx", "xls"],
+        label_visibility="collapsed",
+        key="second_file_uploader",
+    )
+
+    if uploaded2 and uploaded2.name != st.session_state.get("current_file2_name"):
+        with st.spinner(f"📊 Loading {uploaded2.name}..."):
+            r2 = load_file(uploaded2)
+        if not r2["success"]:
+            st.error(f"Could not load file: {r2['error']}")
+            return
+        with st.spinner("🔍 Detecting joinable columns..."):
+            cands = detect_joinable_columns(df1, r2["dataframe"])
+        st.session_state.update({
+            "df2":                r2["dataframe"],
+            "file_info2":         r2["file_info"],
+            "current_file2_name": uploaded2.name,
+            "join_candidates":    cands,
+        })
+        st.rerun()
+
+    # ── Need both files to continue ───────────────────────────────────────────
+    df2        = st.session_state.get("df2")
+    candidates = st.session_state.get("join_candidates") or []
+    if df2 is None:
+        st.caption("⬆️ Upload a second CSV or Excel file to get started.")
+        return
+
+    # ── Join candidates table ─────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(
+        "<p class='section-title'>🎯 Auto-Detected Join Candidates</p>",
+        unsafe_allow_html=True,
+    )
+
+    if not candidates:
+        st.warning(
+            "⚠️ No joinable column pairs detected. "
+            "Columns need at least a shared word in their names to be considered."
+        )
+        st.info(
+            "Tip: rename your key column so both files share a common word "
+            "(e.g. 'order_id' ↔ 'order_id', or 'customer_id' ↔ 'cust_id')."
+        )
+        return
+
+    cand_rows = []
+    for i, c in enumerate(candidates):
+        cand_rows.append({
+            "#":                 i + 1,
+            "Primary Column":    c["col_df1"],
+            "Second Column":     c["col_df2"],
+            "Name Match":        c["name_match"],
+            "Type Compat.":      "✅" if c["type_compatible"] else "❌",
+            "Value Overlap %":   f"{c['value_overlap']}%",
+            "Score / 100":       c["score"],
+            "Status":            "✅ Recommended" if c["recommended"] else "⚠️ Weak",
+            "Join Hint":         c["join_hint"],
+        })
+    cand_html = pd.DataFrame(cand_rows).to_html(index=False, classes="glass-table")
+    st.markdown(
+        f'<div style="overflow-x:auto;padding-bottom:10px;">{cand_html}</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "Score = name similarity (0–40) + type compatibility (0–20) + "
+        "value overlap / Jaccard (0–40).  Recommended threshold: ≥ 55."
+    )
+
+    # ── Join configuration ────────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(
+        "<p class='section-title'>⚙️ Configure Join</p>",
+        unsafe_allow_html=True,
+    )
+    best      = candidates[0]
+    all_cols1 = list(df1.columns)
+    all_cols2 = list(df2.columns)
+
+    cfg1, cfg2, cfg3 = st.columns(3)
+    with cfg1:
+        left_col = st.selectbox(
+            "Primary file column",
+            all_cols1,
+            index=all_cols1.index(best["col_df1"]) if best["col_df1"] in all_cols1 else 0,
+            key="join_left_col",
+        )
+    with cfg2:
+        right_col = st.selectbox(
+            "Second file column",
+            all_cols2,
+            index=all_cols2.index(best["col_df2"]) if best["col_df2"] in all_cols2 else 0,
+            key="join_right_col",
+        )
+    with cfg3:
+        join_type = st.selectbox(
+            "Join type",
+            ["inner", "left", "right", "outer"],
+            format_func=lambda x: {
+                "inner": "🔵 Inner  (matching rows only)",
+                "left":  "⬅️ Left   (all primary rows)",
+                "right": "➡️ Right  (all second rows)",
+                "outer": "🔷 Full Outer (all rows)",
+            }[x],
+            key="join_type_sel",
+        )
+
+    # ── Preview button ────────────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("👁️ Preview Merge Result", key="preview_merge_btn"):
+        with st.spinner("Merging for preview..."):
+            pv = merge_dataframes(df1, df2, left_on=left_col, right_on=right_col, how=join_type)
+        if not pv["success"]:
+            st.error(f"Preview failed: {pv['error']}")
+        else:
+            pv_df = pv["dataframe"]
+            r1, r2_cnt = pv["rows_before"]
+            m1, m2, m3, m4 = st.columns(4)
+            def _met(col, val, lbl):
+                col.markdown(
+                    f"<div class='kpi-premium c1' style='padding:0.8rem;'>"
+                    f"<p class='kpi-val'>{val}</p><p class='kpi-lbl'>{lbl}</p></div>",
+                    unsafe_allow_html=True,
+                )
+            _met(m1, f"{r1:,}",           "Primary Rows")
+            _met(m2, f"{r2_cnt:,}",       "Second Rows")
+            _met(m3, f"{pv['rows_merged']:,}", "Merged Rows")
+            _met(m4, str(pv["cols_merged"]),   "Total Cols")
+
+            if pv.get("dropped_rows", 0) > 0:
+                st.warning(
+                    f"⚠️ {pv['dropped_rows']:,} primary-file rows had no match and were "
+                    f"dropped. Switch to 'Left' join to keep all primary rows."
+                )
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown(
+                "<p class='section-title' style='font-size:0.85rem;'>🔍 Preview (first 10 rows)</p>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f'<div style="overflow-x:auto;">'
+                f'{pv_df.head(10).to_html(index=False, classes="glass-table")}</div>',
+                unsafe_allow_html=True,
+            )
+
+    # ── Apply merge ───────────────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("✅ Apply Merge & Activate for Chat / SQL", key="apply_merge_btn",
+                 use_container_width=True):
+        with st.spinner("🔗 Merging and reloading database..."):
+            result = merge_dataframes(
+                df1, df2, left_on=left_col, right_on=right_col, how=join_type
+            )
+        if not result["success"]:
+            st.error(f"❌ Merge failed: {result['error']}")
+            return
+
+        merged_df = result["dataframe"]
+        fi2       = st.session_state.get("file_info2", {})
+
+        merged_fi = {
+            "file_name":          f"{fi1.get('file_name','')} ⋈ {fi2.get('file_name','')}",
+            "num_rows":           len(merged_df),
+            "num_cols":           len(merged_df.columns),
+            "has_missing_values": bool(merged_df.isnull().any().any()),
+            "missing_info":       {},
+            "column_details": [
+                {
+                    "name":           col,
+                    "type":           str(merged_df[col].dtype),
+                    "non_null_count": int(merged_df[col].count()),
+                    "null_count":     int(merged_df[col].isnull().sum()),
+                    "unique_count":   int(merged_df[col].nunique()),
+                    "percentage":     round(
+                        merged_df[col].isnull().sum() / len(merged_df) * 100, 2
+                    ) if len(merged_df) else 0.0,
+                }
+                for col in merged_df.columns
+            ],
+        }
+
+        cats   = detect_column_categories(merged_df)
+        schema = generate_smart_schema(merged_df, merged_fi, cats)
+        kpis   = get_all_kpis(merged_df, merged_fi)
+        sugs   = generate_smart_suggestions(merged_df, merged_fi, cats)
+
+        reset_database()
+        load_dataframe_to_db(merged_df)
+
+        # Back up original df only once
+        if not st.session_state.get("df_original"):
+            st.session_state["df_original"] = df1.copy()
+
+        st.session_state.update({
+            "df":               merged_df,
+            "file_info":        merged_fi,
+            "schema":           schema,
+            "column_categories": cats,
+            "kpis":             kpis["kpis"],
+            "suggestions":      sugs,
+            "db_loaded":        True,
+            "using_merged":     True,
+            "merged_df":        merged_df,
+            "chat_history":     [],
+            "query_count":      0,
+            "data_summary":     None,
+            "cleaning_applied": False,
+            "cleaning_report":  None,
+        })
+        generate_ai_summary()
+        st.success(
+            f"✅ Merge applied!  "
+            f"{result['rows_merged']:,} rows × {result['cols_merged']} columns.  "
+            f"Chat & SQL now use the combined dataset."
+        )
+        st.rerun()
+
+
 def render_refinement_tab():
     st.markdown("<p class='section-title'>✨ AI Data Refinement & Healing</p>", unsafe_allow_html=True)
 
@@ -2357,12 +2712,18 @@ def render_refinement_tab():
 # ─────────────────────────────────────────────
 def reset_all():
     reset_database()
-    for k in ['df', 'file_info', 'schema', 'column_categories',
-              'kpis', 'suggestions', 'chat_history',
-              'file_uploaded', 'current_file_name', 'db_loaded',
-              'data_summary', 'query_count', 'show_chat',
-              'cleaning_applied', 'cleaning_report',
-              'pdf_report', 'pdf_report_name']:   # clear on file re-upload
+    for k in [
+        # original keys
+        'df', 'file_info', 'schema', 'column_categories',
+        'kpis', 'suggestions', 'chat_history',
+        'file_uploaded', 'current_file_name', 'db_loaded',
+        'data_summary', 'query_count', 'show_chat',
+        'cleaning_applied', 'cleaning_report',
+        'pdf_report', 'pdf_report_name',
+        # join-feature keys
+        'df2', 'file_info2', 'current_file2_name',
+        'join_candidates', 'merged_df', 'df_original', 'using_merged',
+    ]:
         if k in st.session_state:
             del st.session_state[k]
 
