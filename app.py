@@ -1816,94 +1816,51 @@ def render_settings_tab():
     # Inject CSS directly for toggle and selectbox to ensure it applies
     st.markdown("""
     <style>
-    /* Direct injection for Settings tab - Premium Styles */
+    /* ULTRA VISIBLE TEST STYLES - Should be impossible to miss */
+    
+    /* 1. Toggle container - BRIGHT YELLOW with thick red border */
     div[data-testid="stToggle"], .stToggle, [data-testid="stToggle"] {
         padding: 14px 18px !important;
         border-radius: 18px !important;
-        background: rgba(255, 255, 255, 0.05) !important;
+        background: #ffff00 !important; /* Bright yellow */
         backdrop-filter: blur(20px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border: 5px solid #ff0000 !important; /* Thick red border */
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
         margin-bottom: 8px !important;
         transition: all 0.3s ease !important;
     }
     
-    div[data-testid="stToggle"]:hover, .stToggle:hover, [data-testid="stToggle"]:hover {
-        background: rgba(255, 255, 255, 0.08) !important;
-        border-color: rgba(102, 126, 234, 0.3) !important;
-        box-shadow: 0 12px 40px rgba(102, 126, 234, 0.15) !important;
-    }
-    
+    /* 2. Toggle label - BRIGHT PINK with huge font */
     div[data-testid="stToggle"] p, .stToggle p, [data-testid="stToggle"] p,
     div[data-testid="stToggle"] label, .stToggle label, [data-testid="stToggle"] label {
-        font-weight: 800 !important;
-        background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%) !important;
-        -webkit-background-clip: text !important;
-        -webkit-text-fill-color: transparent !important;
-        background-clip: text !important;
-        font-size: 1.15rem !important;
+        font-weight: 900 !important;
+        color: #ff00ff !important; /* Bright pink */
+        font-size: 1.5rem !important; /* Larger font */
         letter-spacing: 0.3px !important;
         margin-bottom: 8px !important;
-        color: transparent !important;
+        text-decoration: underline !important;
     }
     
-    /* Enhanced switch container - larger with glow */
+    /* 3. Switch container - BRIGHT ORANGE with thick blue border */
     div[data-testid="stToggle"] div[role="switch"],
     .stToggle div[role="switch"],
     [data-testid="stToggle"] div[role="switch"] {
         height: 2rem !important;
         width: 3.8rem !important;
-        background: rgba(255, 255, 255, 0.12) !important;
-        border: 1px solid rgba(255, 255, 255, 0.25) !important;
+        background: #ff9900 !important; /* Bright orange */
+        border: 3px solid #0000ff !important; /* Thick blue border */
         border-radius: 100px !important;
         transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
         position: relative !important;
         overflow: hidden !important;
     }
     
-    /* Inner glow effect */
-    div[data-testid="stToggle"] div[role="switch"]::before,
-    .stToggle div[role="switch"]::before,
-    [data-testid="stToggle"] div[role="switch"]::before {
-        content: '' !important;
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, transparent 70%) !important;
-        opacity: 0 !important;
-        transition: opacity 0.3s ease !important;
-        z-index: 1 !important;
-    }
-    
-    /* ACTIVE state - vibrant gradient with strong glow */
-    div[data-testid="stToggle"] div[aria-checked="true"],
-    div[data-testid="stToggle"] div[role="switch"][aria-checked="true"],
-    .stToggle div[aria-checked="true"],
-    .stToggle div[role="switch"][aria-checked="true"],
-    [data-testid="stToggle"] div[aria-checked="true"],
-    [data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #a78bfa 100%) !important;
-        border-color: rgba(255, 255, 255, 0.4) !important;
-        box-shadow: 0 0 25px rgba(102, 126, 234, 0.8), inset 0 1px 0 rgba(255,255,255,0.2) !important;
-    }
-    
-    div[data-testid="stToggle"] div[aria-checked="true"]::before,
-    div[data-testid="stToggle"] div[role="switch"][aria-checked="true"]::before,
-    .stToggle div[aria-checked="true"]::before,
-    .stToggle div[role="switch"][aria-checked="true"]::before,
-    [data-testid="stToggle"] div[aria-checked="true"]::before,
-    [data-testid="stToggle"] div[role="switch"][aria-checked="true"]::before {
-        opacity: 1 !important;
-    }
-    
-    /* Enhanced moving knob - larger with shadow and animation */
+    /* 4. Switch knob - BRIGHT GREEN with purple border */
     div[data-testid="stToggle"] div[role="switch"] > div,
     .stToggle div[role="switch"] > div,
     [data-testid="stToggle"] div[role="switch"] > div {
-        background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%) !important;
-        border: none !important;
+        background: #00ff00 !important; /* Bright green */
+        border: 2px solid #800080 !important; /* Purple border */
         width: 1.8rem !important;
         height: 1.8rem !important;
         border-radius: 50% !important;
@@ -1915,110 +1872,30 @@ def render_settings_tab():
         z-index: 2 !important;
     }
     
-    /* Knob position when ON */
-    div[data-testid="stToggle"] div[aria-checked="true"] > div,
-    div[data-testid="stToggle"] div[role="switch"][aria-checked="true"] > div,
-    .stToggle div[aria-checked="true"] > div,
-    .stToggle div[role="switch"][aria-checked="true"] > div,
-    [data-testid="stToggle"] div[aria-checked="true"] > div,
-    [data-testid="stToggle"] div[role="switch"][aria-checked="true"] > div {
-        transform: translateX(1.8rem) scale(1) !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 12px rgba(167, 139, 250, 0.5) !important;
-    }
-    
-    /* Knob hover effect */
-    div[data-testid="stToggle"] div[role="switch"]:hover > div,
-    .stToggle div[role="switch"]:hover > div,
-    [data-testid="stToggle"] div[role="switch"]:hover > div {
-        transform: scale(1.05) !important;
-    }
-    
-    div[data-testid="stToggle"] div[aria-checked="true"]:hover > div,
-    div[data-testid="stToggle"] div[role="switch"][aria-checked="true"]:hover > div,
-    .stToggle div[aria-checked="true"]:hover > div,
-    .stToggle div[role="switch"][aria-checked="true"]:hover > div,
-    [data-testid="stToggle"] div[aria-checked="true"]:hover > div,
-    [data-testid="stToggle"] div[role="switch"][aria-checked="true"]:hover > div {
-        transform: translateX(1.8rem) scale(1.05) !important;
-    }
-    
+    /* 5. Selectbox - BRIGHT CYAN with thick magenta border */
     div[data-testid="stSelectbox"] > div > div,
     [data-testid="stSelectbox"] > div > div,
     .stSelectbox > div > div {
-        background: rgba(255,255,255,0.05) !important;
+        background: #00ffff !important; /* Bright cyan */
         backdrop-filter: blur(20px) !important;
-        border: 1px solid rgba(255,255,255,0.15) !important;
+        border: 4px solid #ff00ff !important; /* Thick magenta border */
         border-radius: 14px !important;
         transition: all 0.3s ease !important;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
     }
     
-    div[data-testid="stSelectbox"] > div > div:hover,
-    [data-testid="stSelectbox"] > div > div:hover,
-    .stSelectbox > div > div:hover {
-        border-color: rgba(102, 126, 234, 0.6) !important;
-        box-shadow: 0 0 20px rgba(102, 126, 234, 0.3) !important;
-        background: rgba(255,255,255,0.08) !important;
-    }
-    
+    /* 6. Selectbox label - BRIGHT RED */
     div[data-testid="stSelectbox"] .stSelectbox-label,
     [data-testid="stSelectbox"] .stSelectbox-label,
     .stSelectbox .stSelectbox-label,
     div[data-testid="stSelectbox"] label,
     [data-testid="stSelectbox"] label,
     .stSelectbox label {
-        color: #f7fafc !important;
-        font-weight: 600 !important;
-        font-size: 1rem !important;
+        color: #ff0000 !important; /* Bright red */
+        font-weight: 900 !important;
+        font-size: 1.2rem !important;
         letter-spacing: 0.3px !important;
-    }
-    
-    /* Dropdown menu styling */
-    div[data-testid="stSelectbox"] div[role="listbox"],
-    [data-testid="stSelectbox"] div[role="listbox"],
-    .stSelectbox div[role="listbox"] {
-        background: rgba(20, 20, 40, 0.95) !important;
-        backdrop-filter: blur(30px) !important;
-        border: 1px solid rgba(102, 126, 234, 0.3) !important;
-        border-radius: 12px !important;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4) !important;
-        margin-top: 8px !important;
-        overflow: hidden !important;
-        padding: 8px 0 !important;
-        max-height: 300px !important;
-        overflow-y: auto !important;
-        z-index: 9999 !important;
-    }
-    
-    div[data-testid="stSelectbox"] div[role="option"],
-    [data-testid="stSelectbox"] div[role="option"],
-    .stSelectbox div[role="option"] {
-        color: rgba(255,255,255,0.8) !important;
-        padding: 12px 16px !important;
-        font-family: 'Inter', sans-serif !important;
-        font-size: 0.95rem !important;
-        font-weight: 500 !important;
-        transition: all 0.2s ease !important;
-        border-left: 3px solid transparent !important;
-        cursor: pointer !important;
-    }
-    
-    div[data-testid="stSelectbox"] div[role="option"]:hover,
-    [data-testid="stSelectbox"] div[role="option"]:hover,
-    .stSelectbox div[role="option"]:hover {
-        background: rgba(102, 126, 234, 0.2) !important;
-        color: #ffffff !important;
-        border-left-color: #667eea !important;
-        padding-left: 20px !important;
-    }
-    
-    div[data-testid="stSelectbox"] div[role="option"][aria-selected="true"],
-    [data-testid="stSelectbox"] div[role="option"][aria-selected="true"],
-    .stSelectbox div[role="option"][aria-selected="true"] {
-        background: linear-gradient(90deg, rgba(102, 126, 234, 0.25), rgba(167, 139, 250, 0.15)) !important;
-        color: #ffffff !important;
-        font-weight: 700 !important;
-        border-left-color: #a78bfa !important;
+        text-decoration: underline !important;
     }
     </style>
     """, unsafe_allow_html=True)
