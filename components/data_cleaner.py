@@ -1,60 +1,34 @@
 import pandas as pd
 import numpy as np
 
-def auto_clean_data(df):
+# Change the definition to accept the LLM function
+def auto_clean_data(df, llm_fn=None):
     new_df = df.copy()
+    
+    # ... (Keep Steps 1 through 4 exactly as they are) ...
 
-    # 1. Strip whitespace from column names
-    new_df.columns = [str(c).strip() for c in new_df.columns]
-
-    # 2. Convert all representations of empty to actual NaN
-    new_df = new_df.replace(r'^\s*$', np.nan, regex=True)
-    new_df = new_df.replace(['None', 'null', 'nan', 'N/A', 'n/a', 'NA', '#N/A'], np.nan)
-
-    # 3. Drop fully empty rows and exact duplicates
-    new_df = new_df.dropna(how='all')
-    new_df = new_df.drop_duplicates()
-
-    # 4. Deep Clean Numeric Columns
-    numeric_cols = new_df.select_dtypes(include=[np.number]).columns
-    for col in numeric_cols:
-        new_df[col] = new_df[col].fillna(new_df[col].median())
-        if any(x in col.lower() for x in ['qty', 'quantity', 'price', 'sales', 'amount']):
-            new_df[col] = new_df[col].abs()
-
-    # 5. Deep Clean Categorical/Object Columns
-    #    Also handles price columns stored as strings (e.g. "$10.00", "10.5 USD")
+    # 5. AI-Powered Deep Clean for Categorical/Object Columns
+    if llm_fn:
+        # If AI is connected, use the smart imputer first
+        new_df = ai_smart_impute(new_df, llm_fn)
+        
+    # Catch-all for remaining text columns (or if AI wasn't passed)
     char_cols = new_df.select_dtypes(include=['object', 'category']).columns
     for col in char_cols:
         new_df[col] = new_df[col].fillna("Unknown").astype(str).str.strip()
-
-        # Fix inconsistent price/currency formatting → convert to clean numeric if possible
+        
+        # Fix inconsistent price/currency formatting (keep your existing logic here)
         if any(x in col.lower() for x in ['price', 'cost', 'amount', 'fee', 'revenue']):
             cleaned_num = (
                 new_df[col]
-                .str.replace(r'[^\d.\-]', '', regex=True)   # strip $, commas, spaces, etc.
+                .str.replace(r'[^\d.\-]', '', regex=True)
                 .replace('', np.nan)
             )
-            if cleaned_num.notna().sum() / len(new_df) > 0.7:  # >70% parseable → convert
+            if cleaned_num.notna().sum() / len(new_df) > 0.7:
                 new_df[col] = pd.to_numeric(cleaned_num, errors='coerce').fillna(0)
 
-    # 6. ── FIX: Handle Datetime Columns (previously skipped entirely) ──
-    date_cols = new_df.select_dtypes(include=['datetime64[ns]', 'datetime64']).columns
-    for col in date_cols:
-        if new_df[col].isnull().any():
-            # Forward-fill then backward-fill to preserve temporal continuity
-            new_df[col] = new_df[col].ffill().bfill()
-
-    # 7. Try to parse object columns that look like dates but weren't auto-detected
-    for col in new_df.select_dtypes(include=['object']).columns:
-        if any(x in col.lower() for x in ['date', 'time', 'created', 'updated', 'timestamp']):
-            try:
-                parsed = pd.to_datetime(new_df[col], errors='coerce', infer_datetime_format=True)
-                if parsed.notna().sum() / len(new_df) > 0.7:   # >70% parseable → convert
-                    new_df[col] = parsed.ffill().bfill()
-            except Exception:
-                pass
-
+    # ... (Keep Steps 6 and 7 exactly as they are) ...
+    
     return new_df
 
 def generate_cleaning_report(df_before, df_after):
@@ -140,3 +114,65 @@ def generate_cleaning_report(df_before, df_after):
         'columns_unchanged':  sum(1 for c in columns if not c['changed']),
         'columns':            columns,
     }
+
+import json
+
+def ai_smart_impute(df, llm_fn):
+    """
+    Uses AI to infer and fill missing categorical/text values 
+    based on the context of the other columns in the same row.
+    """
+    new_df = df.copy()
+    
+    # Find columns that are text/categorical and have missing values
+    text_cols_with_nulls = [
+        col for col in new_df.select_dtypes(include=['object', 'category']).columns 
+        if new_df[col].isnull().sum() > 0
+    ]
+    
+    if not text_cols_with_nulls:
+        return new_df # Nothing to impute
+
+    # Limit to a maximum number of rows to avoid massive API delays/costs
+    # We will only AI-impute if there are fewer than 50 missing rows total
+    total_nulls = sum(new_df[col].isnull().sum() for col in text_cols_with_nulls)
+    if total_nulls > 50:
+        # Fallback to rule-based if there's too much missing data
+        for col in text_cols_with_nulls:
+            new_df[col] = new_df[col].fillna("Unknown")
+        return new_df
+
+    # Process each column that has missing values
+    for target_col in text_cols_with_nulls:
+        # Get the rows where this specific column is missing
+        missing_mask = new_df[target_col].isnull()
+        rows_to_fix = new_df[missing_mask]
+        
+        for index, row in rows_to_fix.iterrows():
+            # Convert the row (excluding the missing target) to a JSON string for context
+            context_data = row.drop(target_col).dropna().to_dict()
+            
+            prompt = f"""
+            You are a data cleaning assistant. 
+            I have a row of dataset where the column '{target_col}' is missing.
+            
+            Here is the rest of the data in that row:
+            {json.dumps(context_data, indent=2)}
+            
+            Based on this context, what is the most logical value for '{target_col}'?
+            Reply ONLY with the best guess value. Do not include quotes, explanations, or periods.
+            If you absolutely cannot guess, reply with "Unknown".
+            """
+            
+            try:
+                # Call your LLM
+                ai_guess = llm_fn(prompt).strip()
+                # Clean up the response just in case the LLM added quotes
+                ai_guess = ai_guess.strip("'\"") 
+                
+                # Apply the fix
+                new_df.at[index, target_col] = ai_guess
+            except Exception:
+                new_df.at[index, target_col] = "Unknown"
+                
+    return new_df

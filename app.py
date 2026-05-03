@@ -2648,7 +2648,19 @@ def render_refinement_tab():
                         df_snapshot = st.session_state.df.copy()
 
                         # 2. Run the cleaner
-                        cleaned_df = auto_clean_data(st.session_state.df)
+                        # Create a quick wrapper function to pass to the cleaner
+                        def clean_llm_caller(prompt):
+                            from components.llm_engine import generate_text_response
+                            res = generate_text_response(
+                                question=prompt, 
+                                schema="Data Cleaning Context", 
+                                context="Infer missing value", 
+                                llm_model=st.session_state.llm_model
+                            )
+                            return res.get('response', 'Unknown') if isinstance(res, dict) else str(res)
+
+                        # 2. Run the AI-enhanced cleaner
+                        cleaned_df = auto_clean_data(st.session_state.df, llm_fn=clean_llm_caller)
 
                         # 3. Generate before/after report immediately after cleaning
                         st.session_state.cleaning_report = generate_cleaning_report(
