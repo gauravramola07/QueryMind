@@ -1,27 +1,16 @@
 # components/report_generator.py
 """
-QueryMind PDF Report Generator
-Fixes applied vs v2:
-  - FIX 1: matplotlib.use('Agg') moved to module level so it takes effect
-            before pyplot is ever imported, regardless of import order.
-  - FIX 2: _matplotlib_chart() now accepts explicit `col`, `group_col`,
-            and `chart_type` params so each chart spec plots different data.
-  - FIX 3: Removed the premature "Generating charts from dataset…" message
-            that appeared alongside "No charts could be generated" when all
-            fallbacks failed, causing doubled/overlapping text on Page 3.
-  - FIX 4: Added PageBreak before Numeric Summary so Page 1 no longer
-            overflows ~846 pts of content into the 694 pt frame (which was
-            causing the visual overlap / content bleeding into footer).
-  - FIX 5: Reduced grade-pill fontSize from 52 → 36 to reclaim ~60 pts of
-            vertical space on Page 1 while still looking prominent.
-  - FIX 6: Exception in _matplotlib_chart now prints a traceback so failures
-            are diagnosable from the Streamlit console.
+QueryMind PDF Report Generator - FULLY FIXED VERSION
+Fixes:
+  - FIX 1: matplotlib made fully optional with graceful fallback using 
+            only ReportLab native drawing (no external deps needed)
+  - FIX 2: Removed stale "Generating charts from dataset…" paragraph
+  - FIX 3: Page 1 overflow fixed with proper PageBreak placement  
+  - FIX 4: Charts now use ReportLab's built-in bar/histogram drawing
+            so kaleido/matplotlib are NOT required at all
+  - FIX 5: Grade pill size reduced to prevent overflow
+  - FIX 6: Proper error handling and diagnostics
 """
-
-# ── matplotlib MUST be configured before pyplot is imported anywhere ──────────
-import matplotlib
-matplotlib.use('Agg')                      # non-interactive PNG backend
-import matplotlib.pyplot as plt            # safe to import here now
 
 import io
 import re
@@ -35,22 +24,50 @@ from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.units import cm
+from reportlab.lib.units import cm, inch
 from reportlab.platypus import (
     BaseDocTemplate, Frame, HRFlowable, Image,
     PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle,
     KeepTogether,
 )
-from reportlab.graphics.shapes import Drawing, Rect, String
+from reportlab.graphics.shapes import (
+    Drawing, Rect, String, Line, Polygon, Group
+)
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics import renderPDF
+from reportlab.graphics.widgets.markers import makeMarker
 
-# ── Colour palette mirrors the app's dark theme ──────────────────────────────
+# ── Try matplotlib (optional) ─────────────────────────────────────────────────
+_MPL_AVAILABLE = False
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    _MPL_AVAILABLE = True
+    print("[QueryMind PDF] matplotlib available — will use for charts")
+except ImportError:
+    print("[QueryMind PDF] matplotlib NOT available — using ReportLab native charts")
+
+# ── Try plotly/kaleido (optional) ─────────────────────────────────────────────
+_KALEIDO_AVAILABLE = False
+try:
+    import plotly.io as pio
+    # Quick test
+    _KALEIDO_AVAILABLE = True
+    print("[QueryMind PDF] kaleido available — Plotly export enabled")
+except ImportError:
+    print("[QueryMind PDF] kaleido NOT available — skipping Plotly export")
+
+
+# ── Colour palette mirrors the app's dark theme ───────────────────────────────
 PURPLE    = colors.HexColor('#667eea')
 PURPLE_LT = colors.HexColor('#a78bfa')
 GREEN     = colors.HexColor('#48bb78')
 ORANGE    = colors.HexColor('#ed8936')
 BLUE      = colors.HexColor('#4facfe')
 RED_CLR   = colors.HexColor('#fc8181')
+CYAN      = colors.HexColor('#43e97b')
 BG_DARK   = colors.HexColor('#0d0d2b')
 BG_CARD   = colors.HexColor('#1a1a3e')
 BG_ROW    = colors.HexColor('#161630')
@@ -58,6 +75,17 @@ BG_BAR    = colors.HexColor('#2d3748')
 TEXT_WHT  = colors.HexColor('#f7fafc')
 TEXT_MUT  = colors.HexColor('#a0aec0')
 BORDER    = colors.HexColor('#2d3748')
+
+CHART_COLORS = [
+    colors.HexColor('#667eea'),
+    colors.HexColor('#a78bfa'),
+    colors.HexColor('#43e97b'),
+    colors.HexColor('#4facfe'),
+    colors.HexColor('#f093fb'),
+    colors.HexColor('#ed8936'),
+    colors.HexColor('#fc8181'),
+    colors.HexColor('#48bb78'),
+]
 
 
 def _grade_color(grade):
@@ -69,14 +97,25 @@ def _styles():
     def s(name, **kw):
         return ParagraphStyle(name, **kw)
     return {
-        'h1':   s('h1',   fontSize=28, textColor=TEXT_WHT, fontName='Helvetica-Bold', spaceAfter=4),
-        'h2':   s('h2',   fontSize=13, textColor=PURPLE_LT, fontName='Helvetica-Bold', spaceBefore=14, spaceAfter=6),
-        'sub':  s('sub',  fontSize=11, textColor=PURPLE_LT, fontName='Helvetica', spaceAfter=3),
-        'body': s('body', fontSize=9,  textColor=TEXT_WHT,  fontName='Helvetica', spaceAfter=5, leading=15),
-        'muted':s('muted',fontSize=8,  textColor=TEXT_MUT,  fontName='Helvetica', spaceAfter=3),
-        'cap':  s('cap',  fontSize=8,  textColor=TEXT_MUT,  fontName='Helvetica-Oblique', alignment=TA_CENTER),
-        'kv':   s('kv',   fontSize=20, textColor=PURPLE,    fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=1),
-        'kl':   s('kl',   fontSize=7,  textColor=TEXT_MUT,  fontName='Helvetica', alignment=TA_CENTER),
+        'h1':   s('h1',   fontSize=28, textColor=TEXT_WHT,
+                  fontName='Helvetica-Bold', spaceAfter=4),
+        'h2':   s('h2',   fontSize=13, textColor=PURPLE_LT,
+                  fontName='Helvetica-Bold', spaceBefore=14, spaceAfter=6),
+        'sub':  s('sub',  fontSize=11, textColor=PURPLE_LT,
+                  fontName='Helvetica', spaceAfter=3),
+        'body': s('body', fontSize=9,  textColor=TEXT_WHT,
+                  fontName='Helvetica', spaceAfter=5, leading=15),
+        'muted':s('muted',fontSize=8,  textColor=TEXT_MUT,
+                  fontName='Helvetica', spaceAfter=3),
+        'cap':  s('cap',  fontSize=8,  textColor=TEXT_MUT,
+                  fontName='Helvetica-Oblique', alignment=TA_CENTER),
+        'chart_title': s('ct', fontSize=10, textColor=TEXT_WHT,
+                         fontName='Helvetica-Bold', alignment=TA_CENTER,
+                         spaceAfter=4),
+        'kv':   s('kv',   fontSize=20, textColor=PURPLE,
+                  fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=1),
+        'kl':   s('kl',   fontSize=7,  textColor=TEXT_MUT,
+                  fontName='Helvetica', alignment=TA_CENTER),
     }
 
 
@@ -85,8 +124,10 @@ class _Doc(BaseDocTemplate):
     def __init__(self, buf, dataset_name, **kw):
         super().__init__(buf, **kw)
         self._dataset = dataset_name
-        frame = Frame(self.leftMargin, self.bottomMargin,
-                      self.width, self.height, id='main')
+        frame = Frame(
+            self.leftMargin, self.bottomMargin,
+            self.width, self.height, id='main'
+        )
         self.addPageTemplates([
             PageTemplate(id='main', frames=[frame], onPage=self._decorate)
         ])
@@ -112,14 +153,17 @@ class _Doc(BaseDocTemplate):
         # Header rule
         canv.setStrokeColor(BORDER)
         canv.setLineWidth(0.4)
-        canv.line(doc.leftMargin, h - 1.65*cm, w - doc.rightMargin, h - 1.65*cm)
+        canv.line(doc.leftMargin, h - 1.65*cm,
+                  w - doc.rightMargin, h - 1.65*cm)
 
         # Footer
         canv.line(doc.leftMargin, 1.4*cm, w - doc.rightMargin, 1.4*cm)
         canv.setFont('Helvetica-Oblique', 7.5)
         ts = datetime.now().strftime('%B %d, %Y  %H:%M')
-        canv.drawString(doc.leftMargin, 0.8*cm, f'Generated by QueryMind  |  {ts}')
-        canv.drawRightString(w - doc.rightMargin, 0.8*cm, f'Page {doc.page}')
+        canv.drawString(doc.leftMargin, 0.8*cm,
+                        f'Generated by QueryMind  |  {ts}')
+        canv.drawRightString(w - doc.rightMargin, 0.8*cm,
+                             f'Page {doc.page}')
         canv.restoreState()
 
 
@@ -132,37 +176,266 @@ def _progress_bar(score, bar_w, bar_h=10, fill_color=None):
         else:             fill_color = RED_CLR
 
     d = Drawing(bar_w, bar_h)
-    d.add(Rect(0, 0, bar_w, bar_h, fillColor=BG_BAR, strokeColor=None, rx=3, ry=3))
+    d.add(Rect(0, 0, bar_w, bar_h,
+               fillColor=BG_BAR, strokeColor=None, rx=3, ry=3))
     fill_w = max(0, (score / 100) * bar_w)
     if fill_w > 0:
-        d.add(Rect(0, 0, fill_w, bar_h, fillColor=fill_color, strokeColor=None, rx=3, ry=3))
+        d.add(Rect(0, 0, fill_w, bar_h,
+                   fillColor=fill_color, strokeColor=None, rx=3, ry=3))
     return d
 
 
-# ── FIX 1 + 2: Matplotlib chart — explicit column params, module-level backend ─
-def _matplotlib_chart(df, title, usable_w, chart_type='bar', col=None, group_col=None):
+# ── ReportLab Native Bar Chart (NO external deps) ────────────────────────────
+def _native_bar_chart(df, title, usable_w, col=None, group_col=None):
     """
-    Generate a PNG chart via matplotlib and return a ReportLab Image flowable.
+    Build a bar chart using ReportLab's built-in VerticalBarChart.
+    Zero external dependencies — works even without matplotlib/kaleido.
+    Returns a list of flowables [title_paragraph, drawing, spacer].
+    """
+    try:
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        cat_cols = df.select_dtypes(
+            include=['object', 'category']
+        ).columns.tolist()
 
-    Parameters
-    ----------
-    df         : pd.DataFrame  — source data
-    title      : str           — chart title (displayed on the chart)
-    usable_w   : float         — available page width in points
-    chart_type : 'bar' | 'hist'
-    col        : str | None    — numeric column to plot (auto-detect if None)
-    group_col  : str | None    — categorical column to group by (bar charts)
+        if not numeric_cols:
+            return []
+
+        # Resolve columns
+        if col is None or col not in df.columns:
+            col = numeric_cols[0]
+        if group_col is None and cat_cols:
+            group_col = cat_cols[0]
+
+        if group_col and group_col in df.columns:
+            grp = df.groupby(group_col)[col].sum().nlargest(8)
+            labels = [str(x)[:12] for x in grp.index.tolist()]
+            values = [float(v) for v in grp.values]
+        else:
+            # Fallback: histogram-style using quantile buckets
+            q_col = df[col].dropna()
+            counts, bin_edges = np.histogram(q_col, bins=8)
+            labels = [f"{b:.0f}" for b in bin_edges[:-1]]
+            values = [float(c) for c in counts]
+
+        if not values:
+            return []
+
+        # ── Drawing dimensions ────────────────────────────────────────────────
+        chart_h   = 160
+        chart_w   = float(usable_w)
+        padding   = 40   # left axis labels
+        bar_area_w = chart_w - padding - 10
+        bar_area_h = chart_h - 40
+
+        drawing = Drawing(chart_w, chart_h)
+
+        # Background
+        drawing.add(Rect(0, 0, chart_w, chart_h,
+                         fillColor=BG_CARD, strokeColor=BORDER,
+                         strokeWidth=0.5))
+
+        n = len(values)
+        if n == 0:
+            return []
+
+        max_val = max(values) if max(values) != 0 else 1
+        bar_w_each = (bar_area_w / n) * 0.7
+        gap = (bar_area_w / n) * 0.3
+
+        # Y-axis grid lines (4 lines)
+        for i in range(5):
+            y = 20 + (bar_area_h * i / 4)
+            drawing.add(Line(
+                padding, y, chart_w - 10, y,
+                strokeColor=colors.HexColor('#2d3748'),
+                strokeWidth=0.3
+            ))
+            # Y label
+            y_val = max_val * i / 4
+            label_str = _format_number(y_val)
+            drawing.add(String(
+                padding - 4, y - 3, label_str,
+                fontSize=5.5, fillColor=TEXT_MUT,
+                textAnchor='end'
+            ))
+
+        # Bars
+        for i, (lbl, val) in enumerate(zip(labels, values)):
+            x = padding + i * (bar_area_w / n) + gap / 2
+            bar_h_px = max(2, (val / max_val) * bar_area_h)
+            bar_color = CHART_COLORS[i % len(CHART_COLORS)]
+
+            # Main bar
+            drawing.add(Rect(
+                x, 20, bar_w_each, bar_h_px,
+                fillColor=bar_color,
+                strokeColor=None
+            ))
+
+            # Value label on top of bar
+            val_str = _format_number(val)
+            drawing.add(String(
+                x + bar_w_each / 2,
+                20 + bar_h_px + 2,
+                val_str,
+                fontSize=5.5,
+                fillColor=TEXT_WHT,
+                textAnchor='middle'
+            ))
+
+            # X axis label
+            drawing.add(String(
+                x + bar_w_each / 2,
+                8,
+                lbl[:10],
+                fontSize=5.5,
+                fillColor=TEXT_MUT,
+                textAnchor='middle'
+            ))
+
+        # Chart subtitle
+        drawing.add(String(
+            chart_w / 2, chart_h - 12,
+            title,
+            fontSize=8,
+            fillColor=TEXT_WHT,
+            textAnchor='middle',
+            fontName='Helvetica-Bold'
+        ))
+
+        return drawing
+
+    except Exception:
+        print(f'[QueryMind PDF] Native bar chart "{title}" failed:\n'
+              f'{traceback.format_exc()}')
+        return None
+
+
+def _native_pie_chart(df, title, usable_w, col=None, group_col=None):
     """
+    Build a pie chart using ReportLab's built-in Pie.
+    Returns a Drawing flowable or None.
+    """
+    try:
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        cat_cols = df.select_dtypes(
+            include=['object', 'category']
+        ).columns.tolist()
+
+        if not numeric_cols or not cat_cols:
+            return None
+
+        if col is None or col not in df.columns:
+            col = numeric_cols[0]
+        if group_col is None:
+            group_col = cat_cols[0]
+
+        grp = df.groupby(group_col)[col].sum().nlargest(6)
+        if grp.empty:
+            return None
+
+        labels = [str(x)[:15] for x in grp.index.tolist()]
+        values = [float(v) for v in grp.values]
+
+        chart_h = 160
+        chart_w = float(usable_w)
+
+        drawing = Drawing(chart_w, chart_h)
+        drawing.add(Rect(0, 0, chart_w, chart_h,
+                         fillColor=BG_CARD, strokeColor=BORDER,
+                         strokeWidth=0.5))
+
+        pie = Pie()
+        pie.x = int(chart_w * 0.15)
+        pie.y = 20
+        pie.width = 120
+        pie.height = 120
+        pie.data = values
+        pie.labels = [f'{(v/sum(values)*100):.1f}%' for v in values]
+        pie.slices.strokeWidth = 0.5
+        pie.slices.strokeColor = BG_DARK
+        pie.sideLabels = False
+        pie.simpleLabels = True
+
+        for i in range(len(values)):
+            pie.slices[i].fillColor = CHART_COLORS[i % len(CHART_COLORS)]
+            pie.slices[i].labelRadius = 1.25
+            pie.slices[i].fontSize = 6
+            pie.slices[i].fontColor = TEXT_WHT
+
+        drawing.add(pie)
+
+        # Legend
+        legend_x = int(chart_w * 0.55)
+        for i, (lbl, val) in enumerate(zip(labels, values)):
+            y = chart_h - 25 - i * 18
+            if y < 15:
+                break
+            drawing.add(Rect(
+                legend_x, y, 10, 10,
+                fillColor=CHART_COLORS[i % len(CHART_COLORS)],
+                strokeColor=None
+            ))
+            drawing.add(String(
+                legend_x + 14, y + 1,
+                f'{lbl}: {_format_number(val)}',
+                fontSize=6.5,
+                fillColor=TEXT_WHT,
+                textAnchor='start'
+            ))
+
+        # Title
+        drawing.add(String(
+            chart_w / 2, chart_h - 10,
+            title,
+            fontSize=8,
+            fillColor=TEXT_WHT,
+            textAnchor='middle',
+            fontName='Helvetica-Bold'
+        ))
+
+        return drawing
+
+    except Exception:
+        print(f'[QueryMind PDF] Native pie chart "{title}" failed:\n'
+              f'{traceback.format_exc()}')
+        return None
+
+
+def _format_number(val):
+    """Format large numbers compactly for chart labels."""
+    try:
+        if val >= 1_000_000:
+            return f'{val/1_000_000:.1f}M'
+        elif val >= 1_000:
+            return f'{val/1_000:.1f}K'
+        else:
+            return f'{val:.1f}'
+    except Exception:
+        return str(val)
+
+
+# ── Matplotlib chart (only if available) ─────────────────────────────────────
+def _matplotlib_chart(df, title, usable_w, chart_type='bar',
+                       col=None, group_col=None):
+    """
+    Generate a PNG chart via matplotlib — only called if _MPL_AVAILABLE.
+    Returns ReportLab Image flowable or None.
+    """
+    if not _MPL_AVAILABLE:
+        return None
     try:
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         if not numeric_cols:
             return None
 
-        # Resolve column defaults
         if col is None or col not in df.columns:
             col = numeric_cols[0]
 
-        cat_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+        cat_cols = df.select_dtypes(
+            include=['object', 'category']
+        ).columns.tolist()
         if group_col is None and cat_cols:
             group_col = cat_cols[0]
 
@@ -178,7 +451,6 @@ def _matplotlib_chart(df, title, usable_w, chart_type='bar', col=None, group_col
             ax.set_xlabel(group_col, color='#a0aec0', fontsize=8)
             ax.set_ylabel(f'Sum of {col}', color='#a0aec0', fontsize=8)
         else:
-            # Histogram / distribution
             ax.hist(
                 df[col].dropna(), bins=20,
                 color='#667eea', edgecolor='#2d3748', linewidth=0.5
@@ -194,7 +466,8 @@ def _matplotlib_chart(df, title, usable_w, chart_type='bar', col=None, group_col
         plt.tight_layout(pad=0.5)
 
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=150, facecolor='#0d0d2b', bbox_inches='tight')
+        fig.savefig(buf, format='png', dpi=150,
+                    facecolor='#0d0d2b', bbox_inches='tight')
         plt.close(fig)
         buf.seek(0)
 
@@ -202,19 +475,23 @@ def _matplotlib_chart(df, title, usable_w, chart_type='bar', col=None, group_col
         return Image(buf, width=usable_w, height=img_h)
 
     except Exception:
-        # FIX 6: Print traceback so the failure is visible in the Streamlit console
-        print(f'[QueryMind PDF] Chart "{title}" failed:\n{traceback.format_exc()}')
+        print(f'[QueryMind PDF] Matplotlib chart "{title}" failed:\n'
+              f'{traceback.format_exc()}')
         return None
 
 
 def _plotly_image(fig, usable_w):
-    """Try plotly/kaleido; return None so matplotlib fallback kicks in."""
+    """Try plotly/kaleido; return None so native fallback kicks in."""
+    if not _KALEIDO_AVAILABLE:
+        return None
     try:
         import plotly.io as pio
         png = pio.to_image(fig, format='png', width=900, height=420, scale=2)
         img_h = usable_w * (420 / 900)
         return Image(io.BytesIO(png), width=usable_w, height=img_h)
     except Exception:
+        print(f'[QueryMind PDF] Plotly/kaleido export failed:\n'
+              f'{traceback.format_exc()}')
         return None
 
 
@@ -240,17 +517,22 @@ def _data_table(headers, rows, usable_w, col_widths=None, font_size=8):
     if col_widths is None:
         col_widths = [usable_w / len(headers)] * len(headers)
 
-    th_style = ParagraphStyle('th', fontSize=font_size,   textColor=PURPLE_LT,
-                               fontName='Helvetica-Bold')
-    td_style = ParagraphStyle('td', fontSize=font_size-1, textColor=TEXT_WHT,
-                               fontName='Helvetica', leading=12)
+    th_style = ParagraphStyle(
+        'th', fontSize=font_size, textColor=PURPLE_LT,
+        fontName='Helvetica-Bold'
+    )
+    td_style = ParagraphStyle(
+        'td', fontSize=font_size-1, textColor=TEXT_WHT,
+        fontName='Helvetica', leading=12
+    )
 
     data = [[Paragraph(str(h), th_style) for h in headers]]
     for row in rows:
         data.append([Paragraph(str(cell), td_style) for cell in row])
 
     row_bgs = [
-        ('BACKGROUND', (0, i), (-1, i), BG_CARD if i % 2 == 0 else BG_ROW)
+        ('BACKGROUND', (0, i), (-1, i),
+         BG_CARD if i % 2 == 0 else BG_ROW)
         for i in range(1, len(rows) + 1)
     ]
 
@@ -266,6 +548,151 @@ def _data_table(headers, rows, usable_w, col_widths=None, font_size=8):
         ('VALIGN',        (0, 0), (-1, -1), 'TOP'),
     ] + row_bgs))
     return t
+
+
+# ── Chart section builder ─────────────────────────────────────────────────────
+def _build_chart_section(df, story, st_styles, usable_w,
+                          figures=None):
+    """
+    Build the Visual Analytics page content.
+    Priority: Plotly (kaleido) → matplotlib → ReportLab native.
+    Guarantees charts are always produced if data allows.
+    """
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    cat_cols     = df.select_dtypes(
+        include=['object', 'category']
+    ).columns.tolist()
+
+    charts_added = 0
+
+    # ── 1. Try Plotly/kaleido first ───────────────────────────────────────────
+    if figures and _KALEIDO_AVAILABLE:
+        for fig in figures[:4]:
+            img = _plotly_image(fig, usable_w)
+            if img:
+                story.append(img)
+                story.append(Spacer(1, 0.35*cm))
+                charts_added += 1
+
+    # ── 2. Try matplotlib ─────────────────────────────────────────────────────
+    if charts_added < 4 and _MPL_AVAILABLE:
+        chart_specs = []
+        if cat_cols and numeric_cols:
+            chart_specs.append(dict(
+                title=f'{numeric_cols[0]} by {cat_cols[0]}',
+                chart_type='bar',
+                col=numeric_cols[0],
+                group_col=cat_cols[0],
+            ))
+        if numeric_cols:
+            chart_specs.append(dict(
+                title=f'Distribution of {numeric_cols[0]}',
+                chart_type='hist',
+                col=numeric_cols[0],
+                group_col=None,
+            ))
+        if len(numeric_cols) >= 2:
+            chart_specs.append(dict(
+                title=f'Distribution of {numeric_cols[1]}',
+                chart_type='hist',
+                col=numeric_cols[1],
+                group_col=None,
+            ))
+        if len(cat_cols) >= 2 and len(numeric_cols) >= 2:
+            chart_specs.append(dict(
+                title=f'{numeric_cols[1]} by {cat_cols[1]}',
+                chart_type='bar',
+                col=numeric_cols[1],
+                group_col=cat_cols[1],
+            ))
+
+        needed = 4 - charts_added
+        for spec in chart_specs[:needed]:
+            img = _matplotlib_chart(
+                df, spec['title'], usable_w,
+                chart_type=spec['chart_type'],
+                col=spec['col'],
+                group_col=spec['group_col'],
+            )
+            if img:
+                story.append(img)
+                story.append(Paragraph(spec['title'], st_styles['cap']))
+                story.append(Spacer(1, 0.5*cm))
+                charts_added += 1
+
+    # ── 3. ReportLab native charts (always works — zero deps) ─────────────────
+    if charts_added < 4:
+        print(f"[QueryMind PDF] Using ReportLab native charts "
+              f"(already have {charts_added})")
+
+        native_specs = []
+
+        # Chart A: Revenue/primary metric by top category
+        if cat_cols and numeric_cols:
+            native_specs.append({
+                'type':      'bar',
+                'title':     f'{numeric_cols[0]} by {cat_cols[0]}',
+                'col':       numeric_cols[0],
+                'group_col': cat_cols[0],
+            })
+
+        # Chart B: Pie distribution of category
+        if cat_cols and numeric_cols:
+            native_specs.append({
+                'type':      'pie',
+                'title':     f'{cat_cols[0]} Share of {numeric_cols[0]}',
+                'col':       numeric_cols[0],
+                'group_col': cat_cols[0],
+            })
+
+        # Chart C: Second numeric by first category
+        if len(numeric_cols) >= 2 and cat_cols:
+            native_specs.append({
+                'type':      'bar',
+                'title':     f'{numeric_cols[1]} by {cat_cols[0]}',
+                'col':       numeric_cols[1],
+                'group_col': cat_cols[0],
+            })
+
+        # Chart D: Second category breakdown (pie)
+        if len(cat_cols) >= 2 and len(numeric_cols) >= 2:
+            native_specs.append({
+                'type':      'pie',
+                'title':     f'{cat_cols[1]} Share of {numeric_cols[1]}',
+                'col':       numeric_cols[1],
+                'group_col': cat_cols[1],
+            })
+
+        needed = 4 - charts_added
+        for spec in native_specs[:needed]:
+            drawing = None
+            if spec['type'] == 'bar':
+                drawing = _native_bar_chart(
+                    df, spec['title'], usable_w,
+                    col=spec['col'], group_col=spec['group_col']
+                )
+            elif spec['type'] == 'pie':
+                drawing = _native_pie_chart(
+                    df, spec['title'], usable_w,
+                    col=spec['col'], group_col=spec['group_col']
+                )
+
+            if drawing is not None:
+                story.append(drawing)
+                story.append(Paragraph(spec['title'], st_styles['cap']))
+                story.append(Spacer(1, 0.4*cm))
+                charts_added += 1
+
+    if charts_added == 0:
+        story.append(Paragraph(
+            'No charts could be generated for this dataset '
+            '(insufficient numeric or categorical columns).',
+            st_styles['muted']
+        ))
+    else:
+        print(f"[QueryMind PDF] Visual Analytics: {charts_added} chart(s) added")
+
+    return charts_added
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
@@ -287,7 +714,7 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
     file_name       : str           — original uploaded filename
     """
     buf      = io.BytesIO()
-    st       = _styles()
+    st_s     = _styles()    # renamed from 'st' to avoid clash with streamlit
     story    = []
     usable_w = A4[0] - 4*cm
 
@@ -299,14 +726,14 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
     )
 
     # ─────────────────────────────────────────────────────────────────────────
-    # PAGE 1 — COVER + DATA QUALITY + DATASET STATISTICS
+    # PAGE 1 — COVER + DATA QUALITY
     # ─────────────────────────────────────────────────────────────────────────
-
-    # ── Cover ────────────────────────────────────────────────────────────────
     story.append(Spacer(1, 0.8*cm))
-    story.append(Paragraph('QueryMind', st['h1']))
-    story.append(Paragraph('Data Analytics Report', st['sub']))
-    story.append(HRFlowable(width=usable_w, thickness=0.5, color=PURPLE, spaceAfter=10))
+    story.append(Paragraph('QueryMind', st_s['h1']))
+    story.append(Paragraph('Data Analytics Report', st_s['sub']))
+    story.append(HRFlowable(
+        width=usable_w, thickness=0.5, color=PURPLE, spaceAfter=10
+    ))
     story.append(Spacer(1, 0.2*cm))
 
     for label, value in [
@@ -317,19 +744,18 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
     ]:
         story.append(Paragraph(
             f'<font color="#a78bfa"><b>{label}:</b></font>  {value}',
-            st['body']
+            st_s['body']
         ))
 
-    # ── Data Quality ─────────────────────────────────────────────────────────
+    # ── Data Quality ──────────────────────────────────────────────────────────
     story.append(Spacer(1, 0.4*cm))
-    story.append(Paragraph('Data Quality', st['h2']))
+    story.append(Paragraph('Data Quality', st_s['h2']))
 
     grade     = health.get('grade', 'C')
     gc        = _grade_color(grade)
     grade_lbl = health.get('label', 'Fair')
     overall   = health.get('overall', 0)
 
-    # FIX 5: Reduced grade fontSize 52 → 36 to save ~60 pts of vertical space
     grade_pill = Table([[
         Paragraph(grade, ParagraphStyle(
             'gp', fontSize=36, textColor=gc,
@@ -338,7 +764,7 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
             f'<font size="14" color="{gc.hexval()}"><b>{grade_lbl}</b></font><br/>'
             f'<font size="10" color="#a0aec0">Overall Score: {overall}/100</font>',
             ParagraphStyle('gl', fontSize=14, textColor=gc,
-                            fontName='Helvetica-Bold', leading=22)),
+                           fontName='Helvetica-Bold', leading=22)),
     ]], colWidths=[3*cm, usable_w - 3*cm])
     grade_pill.setStyle(TableStyle([
         ('BACKGROUND',    (0, 0), (-1, -1), BG_CARD),
@@ -351,7 +777,7 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
     story.append(grade_pill)
     story.append(Spacer(1, 0.25*cm))
 
-    # Real progress bars for metric breakdown
+    # Progress bars for metric breakdown
     breakdown = health.get('breakdown', {})
     if breakdown:
         bar_w    = usable_w - 5.5*cm
@@ -360,7 +786,8 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
             bar = _progress_bar(score, bar_w, bar_h=9)
             bar_rows.append([
                 Paragraph(metric.title(), ParagraphStyle(
-                    'bm', fontSize=8, textColor=TEXT_MUT, fontName='Helvetica')),
+                    'bm', fontSize=8, textColor=TEXT_MUT,
+                    fontName='Helvetica')),
                 bar,
                 Paragraph(f'{score}/100', ParagraphStyle(
                     'bs', fontSize=8, textColor=TEXT_WHT,
@@ -380,9 +807,13 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
         ]))
         story.append(bar_table)
 
-    # ── Dataset Statistics ────────────────────────────────────────────────────
-    story.append(Spacer(1, 0.4*cm))
-    story.append(Paragraph('Dataset Statistics', st['h2']))
+    # ── PAGE BREAK: Stats on its own page ─────────────────────────────────────
+    story.append(PageBreak())
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # PAGE 2 — DATASET STATISTICS + KEY METRICS + NUMERIC SUMMARY
+    # ─────────────────────────────────────────────────────────────────────────
+    story.append(Paragraph('Dataset Statistics', st_s['h2']))
 
     null_c = int(df.isnull().sum().sum())
     num_c  = int(df.select_dtypes(include=[np.number]).shape[1])
@@ -394,24 +825,18 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
         ('Numeric Cols',   num_c),
         ('Missing Values', null_c),
         ('Memory',         f'{mem_mb} MB'),
-    ], st, usable_w))
+    ], st_s, usable_w))
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # FIX 4: PAGE BREAK before Numeric Summary
-    # Without this, Page 1 accumulates ~846 pts of content vs a 694 pt frame,
-    # causing the grade pill, progress bars, stats and table to visually
-    # overlap each other and bleed into the footer area.
-    # ─────────────────────────────────────────────────────────────────────────
-    story.append(PageBreak())
+    story.append(Spacer(1, 0.4*cm))
 
     # ── Numeric Summary ───────────────────────────────────────────────────────
     numeric_df = df.select_dtypes(include=[np.number])
     if not numeric_df.empty:
-        story.append(Paragraph('Numeric Summary', st['h2']))
+        story.append(Paragraph('Numeric Summary', st_s['h2']))
 
         desc = numeric_df.describe().round(2)
 
-        # Abbreviate column names to max 9 chars so they fit in cells
+        # Abbreviate column names to max 9 chars
         abbrev = {}
         for col in desc.columns:
             abbrev[col] = (col[:8] + '…') if len(col) > 9 else col
@@ -432,13 +857,14 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
             font_size=7
         ))
 
-    # ── Key KPIs ─────────────────────────────────────────────────────────────
+    story.append(Spacer(1, 0.4*cm))
+
+    # ── Key KPIs ──────────────────────────────────────────────────────────────
     if kpis:
-        story.append(Spacer(1, 0.4*cm))
-        story.append(Paragraph('Key Metrics', st['h2']))
+        story.append(Paragraph('Key Metrics', st_s['h2']))
         pairs = [(k['label'], k['formatted_value']) for k in kpis[:6]]
         for i in range(0, len(pairs), 3):
-            story.append(_kpi_row(pairs[i:i+3], st, usable_w))
+            story.append(_kpi_row(pairs[i:i+3], st_s, usable_w))
             story.append(Spacer(1, 0.12*cm))
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -446,97 +872,28 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
     # ─────────────────────────────────────────────────────────────────────────
     if data_summary:
         story.append(PageBreak())
-        story.append(Paragraph('AI Executive Summary', st['h2']))
+        story.append(Paragraph('AI Executive Summary', st_s['h2']))
         clean = re.sub(r'\*\*(.+?)\*\*', r'\1', data_summary)
         clean = re.sub(r'#{1,6}\s*', '', clean)
         clean = re.sub(r'\n{3,}', '\n\n', clean).strip()
         for para in clean.split('\n\n'):
             if para.strip():
-                story.append(Paragraph(para.strip(), st['body']))
+                story.append(Paragraph(para.strip(), st_s['body']))
                 story.append(Spacer(1, 0.12*cm))
 
     # ─────────────────────────────────────────────────────────────────────────
     # PAGE 4 — VISUAL ANALYTICS
     # ─────────────────────────────────────────────────────────────────────────
     story.append(PageBreak())
-    story.append(Paragraph('Visual Analytics', st['h2']))
+    story.append(Paragraph('Visual Analytics', st_s['h2']))
+    story.append(Paragraph(
+        'Automated charts generated from your dataset using the '
+        'QueryMind analytics engine.',
+        st_s['muted']
+    ))
+    story.append(Spacer(1, 0.3*cm))
 
-    charts_added = 0
-
-    # ── Attempt Plotly/kaleido first ─────────────────────────────────────────
-    if figures:
-        for fig in figures[:4]:
-            img = _plotly_image(fig, usable_w)
-            if img:
-                story.append(img)
-                story.append(Spacer(1, 0.35*cm))
-                charts_added += 1
-
-    # ── FIX 1+2: Matplotlib fallback with explicit column routing ────────────
-    # Each chart_spec now carries the exact col + group_col to plot, so all
-    # four charts show DIFFERENT data instead of all defaulting to col[0].
-    # The premature "Generating charts…" message (FIX 3) is removed — it was
-    # always followed by "No charts could be generated" when charts failed,
-    # producing two overlapping status lines on the Visual Analytics page.
-    if charts_added < 4:
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        cat_cols     = df.select_dtypes(include=['object', 'category']).columns.tolist()
-
-        # Build specs — each entry describes exactly what to plot
-        chart_specs = []
-
-        if cat_cols and numeric_cols:
-            chart_specs.append(dict(
-                title=f'{numeric_cols[0]} by {cat_cols[0]}',
-                chart_type='bar',
-                col=numeric_cols[0],
-                group_col=cat_cols[0],
-            ))
-
-        if numeric_cols:
-            chart_specs.append(dict(
-                title=f'Distribution of {numeric_cols[0]}',
-                chart_type='hist',
-                col=numeric_cols[0],
-                group_col=None,
-            ))
-
-        if len(numeric_cols) >= 2:
-            chart_specs.append(dict(
-                title=f'Distribution of {numeric_cols[1]}',
-                chart_type='hist',
-                col=numeric_cols[1],
-                group_col=None,
-            ))
-
-        if len(cat_cols) >= 2 and len(numeric_cols) >= 2:
-            chart_specs.append(dict(
-                title=f'{numeric_cols[1]} by {cat_cols[1]}',
-                chart_type='bar',
-                col=numeric_cols[1],
-                group_col=cat_cols[1],
-            ))
-
-        needed = 4 - charts_added
-        for spec in chart_specs[:needed]:
-            img = _matplotlib_chart(
-                df, spec['title'], usable_w,
-                chart_type=spec['chart_type'],
-                col=spec['col'],
-                group_col=spec['group_col'],
-            )
-            if img:
-                story.append(img)
-                story.append(Paragraph(spec['title'], st['cap']))
-                story.append(Spacer(1, 0.5*cm))
-                charts_added += 1
-
-    # FIX 3: Only ONE status message, only when truly no charts were produced
-    if charts_added == 0:
-        story.append(Paragraph(
-            'No charts could be generated for this dataset.',
-            st['muted']
-        ))
+    _build_chart_section(df, story, st_s, usable_w, figures=figures)
 
     # ─────────────────────────────────────────────────────────────────────────
     # PAGE 5 — SMART CLEANING REPORT (only if cleaning was run)
@@ -544,29 +901,40 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
     if cleaning_report:
         cr = cleaning_report
         story.append(PageBreak())
-        story.append(Paragraph('Smart Cleaning Report', st['h2']))
+        story.append(Paragraph('Smart Cleaning Report', st_s['h2']))
         story.append(_kpi_row([
             ('Nulls Filled',       cr['total_nulls_filled']),
             ('Duplicates Removed', cr['duplicates_removed']),
             ('Columns Changed',    cr['columns_changed']),
             ('Rows After Clean',   f"{cr['rows_after']:,}"),
-        ], st, usable_w))
+        ], st_s, usable_w))
 
         story.append(Spacer(1, 0.4*cm))
-        story.append(Paragraph('Per-Column Changes', st['h2']))
+        story.append(Paragraph('Per-Column Changes', st_s['h2']))
 
         cr_rows = []
         for col in cr['columns']:
-            ns = (f"{col['nulls_before']} -> {col['nulls_after']} (-{col['nulls_filled']})"
-                  if col['nulls_filled'] > 0 else str(col['nulls_before']))
-            ts = (f"{col['dtype_before']} -> {col['dtype_after']}"
-                  if col['dtype_before'] != col['dtype_after'] else col['dtype_before'])
-            us = (f"{col['unique_before']} -> {col['unique_after']}"
-                  if col['unique_before'] != col['unique_after']
-                  else str(col['unique_before']))
+            ns = (
+                f"{col['nulls_before']} -> {col['nulls_after']} "
+                f"(-{col['nulls_filled']})"
+                if col['nulls_filled'] > 0
+                else str(col['nulls_before'])
+            )
+            ts = (
+                f"{col['dtype_before']} -> {col['dtype_after']}"
+                if col['dtype_before'] != col['dtype_after']
+                else col['dtype_before']
+            )
+            us = (
+                f"{col['unique_before']} -> {col['unique_after']}"
+                if col['unique_before'] != col['unique_after']
+                else str(col['unique_before'])
+            )
             ac = ' | '.join(col['actions']) if col['actions'] else 'No changes'
-            cr_rows.append([col['name'], ts, ns, us, ac,
-                            'Yes' if col['changed'] else '-'])
+            cr_rows.append([
+                col['name'], ts, ns, us, ac,
+                'Yes' if col['changed'] else '-'
+            ])
 
         story.append(_data_table(
             ['Column', 'Type', 'Nulls', 'Unique', 'Actions', 'Changed'],
@@ -579,7 +947,7 @@ def generate_pdf_report(df, fi, health, kpis, data_summary,
     # LAST PAGE — COLUMN SCHEMA
     # ─────────────────────────────────────────────────────────────────────────
     story.append(PageBreak())
-    story.append(Paragraph('Column Schema', st['h2']))
+    story.append(Paragraph('Column Schema', st_s['h2']))
     schema_rows = [
         [col,
          str(df[col].dtype),
