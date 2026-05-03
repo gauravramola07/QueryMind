@@ -183,7 +183,35 @@ def merge_dataframes(
       dropped_rows: int   rows lost (inner/left join difference)
       error       : str   (only if success=False)
     """
+    # ── Pre-merge validation ──────────────────────────────────────────────────
+    if left_on not in df1.columns:
+        return {
+            "success": False, "dataframe": None,
+            "error": f"Column '{left_on}' does not exist in the primary dataset. "
+                     f"Available: {list(df1.columns)}"
+        }
+    if right_on not in df2.columns:
+        return {
+            "success": False, "dataframe": None,
+            "error": f"Column '{right_on}' does not exist in the right dataset. "
+                     f"Available: {list(df2.columns)}"
+        }
+    if how not in ("inner", "left", "right", "outer"):
+        return {
+            "success": False, "dataframe": None,
+            "error": f"Invalid join type '{how}'. Must be one of: inner, left, right, outer."
+        }
+
     try:
+        # Coerce key column types to match when one side is object and the other
+        # is numeric/datetime — a common user mistake that produces 0 join rows.
+        try:
+            if df1[left_on].dtype != df2[right_on].dtype:
+                df2 = df2.copy()
+                df2[right_on] = df2[right_on].astype(df1[left_on].dtype)
+        except (ValueError, TypeError):
+            pass   # leave as-is; pandas will still attempt the join
+
         merged = pd.merge(
             df1,
             df2,

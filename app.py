@@ -2153,8 +2153,25 @@ _MAX_TOTAL_MB = 200.0
 def _build_merged_fi(merged_df, name: str) -> dict:
     """
     Build a file_info dict for a merged DataFrame that is fully compatible
-    with ALL helpers including get_data_health_score (needs 'missing_percentage').
+    with ALL helpers including get_data_health_score.
+
+    Includes every key that load_file() would normally populate so that
+    render_overview_tab / get_data_health_score / get_all_kpis never hit a
+    KeyError after a merge is applied.
+
+    Keys added vs the previous version:
+        numeric_columns, categorical_columns, datetime_columns, boolean_columns
     """
+    if merged_df is None or merged_df.empty:
+        return {
+            "file_name": name, "file_size": "0 KB",
+            "num_rows": 0, "num_cols": 0,
+            "has_missing_values": False, "missing_percentage": 0.0,
+            "missing_info": {}, "column_details": [],
+            "numeric_columns": [], "categorical_columns": [],
+            "datetime_columns": [], "boolean_columns": [],
+        }
+
     total_cells = len(merged_df) * len(merged_df.columns)
     null_total  = int(merged_df.isnull().sum().sum())
     missing_pct = round(null_total / total_cells * 100, 2) if total_cells > 0 else 0.0
@@ -2165,23 +2182,43 @@ def _build_merged_fi(merged_df, name: str) -> dict:
         nc  = int(merged_df[col].isnull().sum())
         pct = round(nc / len(merged_df) * 100, 2) if len(merged_df) else 0.0
         col_details.append({
-            "name": col, "type": str(merged_df[col].dtype),
+            "name":           col,
+            "type":           str(merged_df[col].dtype),
             "non_null_count": int(merged_df[col].count()),
-            "null_count": nc, "unique_count": int(merged_df[col].nunique()),
-            "percentage": pct,
+            "null_count":     nc,
+            "unique_count":   int(merged_df[col].nunique()),
+            "percentage":     pct,
         })
         if nc > 0:
             missing_info[col] = {"count": nc, "percentage": pct}
 
+    # ── Column-type groups ────────────────────────────────────────────────────
+    # These are required by get_data_health_score (helpers.py line 512+) and
+    # other downstream helpers.  Previously absent → KeyError on first rerender
+    # after Apply Merge was clicked.
+    numeric_cols     = merged_df.select_dtypes(include="number").columns.tolist()
+    categorical_cols = merged_df.select_dtypes(
+        include=["object", "category"]
+    ).columns.tolist()
+    datetime_cols    = merged_df.select_dtypes(
+        include=["datetime", "datetimetz"]
+    ).columns.tolist()
+    boolean_cols     = merged_df.select_dtypes(include="bool").columns.tolist()
+
     return {
-        "file_name":          name,
-        "file_size":          f"{merged_df.memory_usage(deep=True).sum() / 1024:.1f} KB",
-        "num_rows":           len(merged_df),
-        "num_cols":           len(merged_df.columns),
-        "has_missing_values": null_total > 0,
-        "missing_percentage": missing_pct,   # ← fixes KeyError in helpers.py
-        "missing_info":       missing_info,
-        "column_details":     col_details,
+        "file_name":           name,
+        "file_size":           f"{merged_df.memory_usage(deep=True).sum() / 1024:.1f} KB",
+        "num_rows":            len(merged_df),
+        "num_cols":            len(merged_df.columns),
+        "has_missing_values":  null_total > 0,
+        "missing_percentage":  missing_pct,
+        "missing_info":        missing_info,
+        "column_details":      col_details,
+        # Column-type groups — required by get_data_health_score & kpi_detector
+        "numeric_columns":     numeric_cols,
+        "categorical_columns": categorical_cols,
+        "datetime_columns":    datetime_cols,
+        "boolean_columns":     boolean_cols,
     }
 
 
@@ -2532,6 +2569,14 @@ def render_join_tab():
                 unsafe_allow_html=True,
             )
 
+    # ── Persist selectbox choices so they survive Streamlit reruns ───────────
+    # Store the current column/join choices in session state so the Apply
+    # button always reads the values the user last selected, even if Streamlit
+    # rerenders the page between interactions.
+    st.session_state["_join_left_col"]  = left_col
+    st.session_state["_join_right_col"] = right_col
+    st.session_state["_join_type"]      = join_type
+
     # ── Apply ─────────────────────────────────────────────────────────────────
     pool_left = len(extra_files) - 1   # files remaining after this join
     btn_label = (
@@ -2540,22 +2585,58 @@ def render_join_tab():
     )
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button(btn_label, key="apply_merge_btn", use_container_width=True):
+        # Re-read from session state to guarantee we use the user's last choice
+        _left_col  = st.session_state.get("_join_left_col",  left_col)
+        _right_col = st.session_state.get("_join_right_col", right_col)
+        _join_type = st.session_state.get("_join_type",      join_type)
+
+        # Validate columns still exist in their respective DataFrames
+        if _left_col not in df1.columns:
+            st.error(f"❌ Column '{_left_col}' not found in primary dataset.")
+            return
+        if _right_col not in df2.columns:
+            st.error(f"❌ Column '{_right_col}' not found in '{right_name}'.")
+            return
+
         with st.spinner("🔗 Merging and reloading database..."):
             result = merge_dataframes(
-                df1, df2, left_on=left_col, right_on=right_col, how=join_type
+                df1, df2, left_on=_left_col, right_on=_right_col, how=_join_type
             )
+
         if not result["success"]:
             st.error(f"❌ Merge failed: {result['error']}")
             return
 
         merged_df = result["dataframe"]
-        merged_name = f"{fi1.get('file_name','')} ⋈ {right_name}"
-        merged_fi   = _build_merged_fi(merged_df, merged_name)   # ← includes missing_percentage
+
+        # Guard: an inner join on non-overlapping keys produces 0 rows
+        if merged_df is None or merged_df.empty:
+            st.error(
+                "❌ The merge produced 0 rows. The selected key columns have no "
+                "matching values. Try a 'Left' or 'Full Outer' join, or choose "
+                "different key columns."
+            )
+            return
+
+        merged_name = f"{fi1.get('file_name', 'primary')} ⋈ {right_name}"
+        # _build_merged_fi now includes numeric_columns, categorical_columns,
+        # datetime_columns, boolean_columns — fixes the KeyError in
+        # get_data_health_score (helpers.py:512) that crashed the Overview tab
+        # immediately after Apply Merge was clicked.
+        merged_fi = _build_merged_fi(merged_df, merged_name)
 
         cats   = detect_column_categories(merged_df)
         schema = generate_smart_schema(merged_df, merged_fi, cats)
-        kpis   = get_all_kpis(merged_df, merged_fi)
-        sugs   = generate_smart_suggestions(merged_df, merged_fi, cats)
+
+        # Safe kpis extraction — get_all_kpis may return {"kpis": [...]} or
+        # just a list depending on version; handle both gracefully.
+        try:
+            kpis_raw = get_all_kpis(merged_df, merged_fi)
+            kpis_list = kpis_raw["kpis"] if isinstance(kpis_raw, dict) else kpis_raw
+        except Exception:
+            kpis_list = []
+
+        sugs = generate_smart_suggestions(merged_df, merged_fi, cats)
 
         reset_database()
         load_dataframe_to_db(merged_df)
@@ -2568,23 +2649,27 @@ def render_join_tab():
         new_pool = [ef for ef in extra_files if ef["name"] != right_name]
 
         st.session_state.update({
-            "df":               merged_df,
-            "file_info":        merged_fi,
-            "schema":           schema,
+            "df":                merged_df,
+            "file_info":         merged_fi,
+            "schema":            schema,
             "column_categories": cats,
-            "kpis":             kpis["kpis"],
-            "suggestions":      sugs,
-            "db_loaded":        True,
-            "using_merged":     True,
-            "merged_df":        merged_df,
-            "extra_files":      new_pool,
-            "join_candidates":  None,
-            "join_right_name":  None,
-            "chat_history":     [],
-            "query_count":      0,
-            "data_summary":     None,
-            "cleaning_applied": False,
-            "cleaning_report":  None,
+            "kpis":              kpis_list,
+            "suggestions":       sugs,
+            "db_loaded":         True,
+            "using_merged":      True,
+            "merged_df":         merged_df,
+            "extra_files":       new_pool,
+            "join_candidates":   None,
+            "join_right_name":   None,
+            # Clear stale join-config scratch keys
+            "_join_left_col":    None,
+            "_join_right_col":   None,
+            "_join_type":        None,
+            "chat_history":      [],
+            "query_count":       0,
+            "data_summary":      None,
+            "cleaning_applied":  False,
+            "cleaning_report":   None,
         })
         generate_ai_summary()
 
