@@ -32,56 +32,55 @@ def load_dataframe_to_db(df):
     Uses a persistent connection stored globally
     """
     global _conn, _current_df
-    with _db_lock:   
+    with _db_lock:
+        try:
+            print(f"🗄️ Loading DataFrame into SQLite...")
+            print(f"📊 Shape: {df.shape[0]} rows × {df.shape[1]} columns")
 
-    try:
-        print(f"🗄️ Loading DataFrame into SQLite...")
-        print(f"📊 Shape: {df.shape[0]} rows × {df.shape[1]} columns")
+            # ── Close existing connection ──────────────
+            if _conn is not None:
+                try:
+                    _conn.close()
+                except Exception:
+                    pass  # Ignore errors when closing old connection
 
-        # ── Close existing connection ──────────────
-        if _conn is not None:
-            try:
-                _conn.close()
-            except:
-                pass
+            # ── Create new persistent connection ──────
+            _conn = sqlite3.connect(':memory:', check_same_thread=False)
 
-        # ── Create new persistent connection ──────
-        _conn = sqlite3.connect(':memory:', check_same_thread=False)
+            # ── Load DataFrame ─────────────────────────
+            df.to_sql(
+                name=config.DB_TABLE_NAME,
+                con=_conn,
+                index=False,
+                if_exists='replace'
+            )
 
-        # ── Load DataFrame ─────────────────────────
-        df.to_sql(
-            name=config.DB_TABLE_NAME,
-            con=_conn,
-            index=False,
-            if_exists='replace'
-        )
+            # ── Store reference ────────────────────────
+            _current_df = df.copy()
 
-        # ── Store reference ────────────────────────
-        _current_df = df.copy()
+            # ── Verify ────────────────────────────────
+            cursor = _conn.cursor()
+            cursor.execute(f"SELECT COUNT(*) FROM {config.DB_TABLE_NAME}")
+            row_count = cursor.fetchone()[0]
 
-        # ── Verify ────────────────────────────────
-        cursor = _conn.cursor()
-        cursor.execute(f"SELECT COUNT(*) FROM {config.DB_TABLE_NAME}")
-        row_count = cursor.fetchone()[0]
+            print(f"✅ Data loaded into SQLite!")
+            print(f"📊 Rows in DB: {row_count:,}")
 
-        print(f"✅ Data loaded into SQLite!")
-        print(f"📊 Rows in DB: {row_count:,}")
+            return {
+                'success': True,
+                'message': f"✅ {row_count:,} rows loaded successfully!",
+                'table_name': config.DB_TABLE_NAME,
+                'row_count': row_count
+            }
 
-        return {
-            'success': True,
-            'message': f"✅ {row_count:,} rows loaded successfully!",
-            'table_name': config.DB_TABLE_NAME,
-            'row_count': row_count
-        }
-
-    except Exception as e:
-        print(f"❌ Error loading data: {e}")
-        return {
-            'success': False,
-            'message': f"❌ Error: {str(e)}",
-            'table_name': None,
-            'row_count': 0
-        }
+        except Exception as e:
+            print(f"❌ Error loading data: {e}")
+            return {
+                'success': False,
+                'message': f"❌ Error: {str(e)}",
+                'table_name': None,
+                'row_count': 0
+            }
 
 
 # ─────────────────────────────────────────────
@@ -93,88 +92,95 @@ def execute_sql_query(sql_query):
     Execute SQL query - auto-reloads DB if needed
     """
     global _conn, _current_df
-    with _db_lock:   
-
-    # ── Auto-reload if connection lost ─────────
-    if _conn is None:
-        if _current_df is not None:
-            print("🔄 Reconnecting to database...")
-            load_dataframe_to_db(_current_df)
-        else:
-            return {
-                'success': False,
-                'dataframe': None,
-                'error': "❌ No data loaded. Please upload a file first.",
-                'row_count': 0,
-                'query_used': sql_query
-            }
-
-    try:
-        # ── Verify table exists ────────────────────
-        cursor = _conn.cursor()
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-            (config.DB_TABLE_NAME,)
-        )
-        table_exists = cursor.fetchone()
-
-        # ── Reload if table missing ────────────────
-        if not table_exists:
+    with _db_lock:
+        # ── Auto-reload if connection lost ─────────
+        if _conn is None:
             if _current_df is not None:
-                print("🔄 Table missing - reloading data...")
-                _current_df.to_sql(
-                    name=config.DB_TABLE_NAME,
-                    con=_conn,
-                    index=False,
-                    if_exists='replace'
-                )
+                print("🔄 Reconnecting to database...")
+                result = load_dataframe_to_db(_current_df)
+                if not result['success']:
+                    return {
+                        'success': False,
+                        'dataframe': None,
+                        'error': f"❌ Failed to reload database: {result['message']}",
+                        'row_count': 0,
+                        'query_used': sql_query
+                    }
             else:
                 return {
                     'success': False,
                     'dataframe': None,
-                    'error': "❌ No data found. Please re-upload your file.",
+                    'error': "❌ No data loaded. Please upload a file first.",
                     'row_count': 0,
                     'query_used': sql_query
                 }
 
-        # ── Clean SQL ──────────────────────────────
-        clean_query = clean_sql_query(sql_query)
-        print(f"🔍 Executing: {clean_query[:100]}...")
+        try:
+            # ── Verify table exists ────────────────────
+            cursor = _conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (config.DB_TABLE_NAME,)
+            )
+            table_exists = cursor.fetchone()
 
-        # ── Safety check ───────────────────────────
-        safety = is_query_safe(clean_query)
-        if not safety['safe']:
+            # ── Reload if table missing ────────────────
+            if not table_exists:
+                if _current_df is not None:
+                    print("🔄 Table missing - reloading data...")
+                    _current_df.to_sql(
+                        name=config.DB_TABLE_NAME,
+                        con=_conn,
+                        index=False,
+                        if_exists='replace'
+                    )
+                else:
+                    return {
+                        'success': False,
+                        'dataframe': None,
+                        'error': "❌ No data found. Please re-upload your file.",
+                        'row_count': 0,
+                        'query_used': sql_query
+                    }
+
+            # ── Clean SQL ──────────────────────────────
+            clean_query = clean_sql_query(sql_query)
+            print(f"🔍 Executing: {clean_query[:100]}...")
+
+            # ── Safety check ───────────────────────────
+            safety = is_query_safe(clean_query)
+            if not safety['safe']:
+                return {
+                    'success': False,
+                    'dataframe': None,
+                    'error': f"❌ Unsafe query: {safety['reason']}",
+                    'row_count': 0,
+                    'query_used': clean_query
+                }
+
+            # ── Execute query ──────────────────────────
+            result_df = pd.read_sql_query(clean_query, _conn)
+
+            print(f"✅ Query returned {len(result_df)} rows")
+
             return {
-                'success': False,
-                'dataframe': None,
-                'error': f"❌ Unsafe query: {safety['reason']}",
-                'row_count': 0,
+                'success': True,
+                'dataframe': result_df,
+                'error': None,
+                'row_count': len(result_df),
                 'query_used': clean_query
             }
 
-        # ── Execute query ──────────────────────────
-        result_df = pd.read_sql_query(clean_query, _conn)
-
-        print(f"✅ Query returned {len(result_df)} rows")
-
-        return {
-            'success': True,
-            'dataframe': result_df,
-            'error': None,
-            'row_count': len(result_df),
-            'query_used': clean_query
-        }
-
-    except Exception as e:
-        error_msg = str(e)
-        print(f"❌ Query error: {error_msg}")
-        return {
-            'success': False,
-            'dataframe': None,
-            'error': get_friendly_error(error_msg),
-            'row_count': 0,
-            'query_used': sql_query
-        }
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Query error: {error_msg}")
+            return {
+                'success': False,
+                'dataframe': None,
+                'error': get_friendly_error(error_msg),
+                'row_count': 0,
+                'query_used': sql_query
+            }
 
 
 # ─────────────────────────────────────────────
@@ -205,8 +211,8 @@ def ensure_db_loaded(df):
             )
             if not cursor.fetchone():
                 needs_reload = True
-        except:
-            needs_reload = True
+        except Exception:
+            needs_reload = True  # If we can't check, assume reload needed
 
     # Reload if needed
     if needs_reload and df is not None:
@@ -337,8 +343,8 @@ def reset_database():
     if _conn:
         try:
             _conn.close()
-        except:
-            pass
+        except Exception:
+            pass  # Ignore errors when closing connection during reset
 
     _conn = None
     _current_df = None
