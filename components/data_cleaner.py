@@ -1,11 +1,28 @@
 import pandas as pd
 import numpy as np
+import json
 
-# Change the definition to accept the LLM function
 def auto_clean_data(df, llm_fn=None):
     new_df = df.copy()
-    
-    # ... (Keep Steps 1 through 4 exactly as they are) ...
+
+    # 1. Strip whitespace from column names
+    new_df.columns = [str(c).strip() for c in new_df.columns]
+
+    # 2. Convert all representations of empty to actual NaN
+    new_df = new_df.replace(r'^\s*$', np.nan, regex=True)
+    new_df = new_df.replace(['None', 'null', 'nan', 'N/A', 'n/a', 'NA', '#N/A'], np.nan)
+
+    # 3. Drop fully empty rows, fully empty columns, and exact duplicates
+    new_df = new_df.dropna(how='all')          # Drops rows where all values are NaN
+    new_df = new_df.dropna(axis=1, how='all')  # Drops columns where all values are NaN
+    new_df = new_df.drop_duplicates()
+
+    # 4. Deep Clean Numeric Columns
+    numeric_cols = new_df.select_dtypes(include=[np.number]).columns
+    for col in numeric_cols:
+        new_df[col] = new_df[col].fillna(new_df[col].median())
+        if any(x in col.lower() for x in ['qty', 'quantity', 'price', 'sales', 'amount']):
+            new_df[col] = new_df[col].abs()
 
     # 5. AI-Powered Deep Clean for Categorical/Object Columns
     if llm_fn:
@@ -17,7 +34,7 @@ def auto_clean_data(df, llm_fn=None):
     for col in char_cols:
         new_df[col] = new_df[col].fillna("Unknown").astype(str).str.strip()
         
-        # Fix inconsistent price/currency formatting (keep your existing logic here)
+        # Fix inconsistent price/currency formatting
         if any(x in col.lower() for x in ['price', 'cost', 'amount', 'fee', 'revenue']):
             cleaned_num = (
                 new_df[col]
@@ -27,9 +44,24 @@ def auto_clean_data(df, llm_fn=None):
             if cleaned_num.notna().sum() / len(new_df) > 0.7:
                 new_df[col] = pd.to_numeric(cleaned_num, errors='coerce').fillna(0)
 
-    # ... (Keep Steps 6 and 7 exactly as they are) ...
-    
+    # 6. Handle Datetime Columns
+    date_cols = new_df.select_dtypes(include=['datetime64[ns]', 'datetime64']).columns
+    for col in date_cols:
+        if new_df[col].isnull().any():
+            new_df[col] = new_df[col].ffill().bfill()
+
+    # 7. Try to parse object columns that look like dates
+    for col in new_df.select_dtypes(include=['object']).columns:
+        if any(x in col.lower() for x in ['date', 'time', 'created', 'updated', 'timestamp']):
+            try:
+                parsed = pd.to_datetime(new_df[col], errors='coerce', infer_datetime_format=True)
+                if parsed.notna().sum() / len(new_df) > 0.7:
+                    new_df[col] = parsed.ffill().bfill()
+            except Exception:
+                pass
+
     return new_df
+
 
 def generate_cleaning_report(df_before, df_after):
     """
@@ -45,6 +77,20 @@ def generate_cleaning_report(df_before, df_after):
     columns = []
     for col in df_before.columns:
         if col not in df_after.columns:
+            # Tell the report this column was completely annihilated
+            nulls_b = int(df_before[col].isnull().sum())
+            columns.append({
+                'name':          col,
+                'dtype_before':  str(df_before[col].dtype),
+                'dtype_after':   'Dropped',
+                'nulls_before':  nulls_b,
+                'nulls_after':   0,
+                'nulls_filled':  nulls_b,
+                'unique_before': int(df_before[col].nunique(dropna=True)),
+                'unique_after':  0,
+                'actions':       ["Dropped entirely (100% empty)"],
+                'changed':       True,
+            })
             continue
 
         before_series = df_before[col]
@@ -68,7 +114,7 @@ def generate_cleaning_report(df_before, df_after):
                 median_val = round(after_series.median(), 2)
                 actions.append(f"Filled {nulls_filled} null(s) with median ({median_val})")
             else:
-                actions.append(f"Filled {nulls_filled} null(s) with 'Unknown'")
+                actions.append(f"Filled {nulls_filled} null(s) with AI/'Unknown'")
 
         if dtype_before != dtype_after:
             actions.append(f"Type converted: {dtype_before} → {dtype_after}")
@@ -115,7 +161,6 @@ def generate_cleaning_report(df_before, df_after):
         'columns':            columns,
     }
 
-import json
 
 def ai_smart_impute(df, llm_fn):
     """
