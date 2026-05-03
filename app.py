@@ -492,11 +492,11 @@ def load_css():
     
      /* ── Premium Enhanced Toggle ── */
      
-     /* 1. Premium container with glassmorphism - ULTRA SPECIFIC */
+     /* DEBUG: Test if CSS is loading - bright red background */
      div[data-testid="stToggle"], .stToggle, [data-testid="stToggle"] {
+         background: #ff0000 !important; /* Bright red for testing */
          padding: 14px 18px !important;
          border-radius: 18px !important;
-         background: rgba(255, 255, 255, 0.05) !important;
          backdrop-filter: blur(20px) !important;
          border: 1px solid rgba(255, 255, 255, 0.1) !important;
          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
@@ -723,10 +723,11 @@ def load_css():
      }
 
      /* ── Premium Selectbox Styling ── */
+     /* DEBUG: Test if CSS is loading - bright green background */
      div[data-testid="stSelectbox"] > div > div,
      [data-testid="stSelectbox"] > div > div,
      .stSelectbox > div > div {
-         background: rgba(255,255,255,0.05) !important;
+         background: #00ff00 !important; /* Bright green for testing */
          backdrop-filter: blur(20px) !important;
          border: 1px solid rgba(255,255,255,0.15) !important;
          border-radius: 14px !important;
@@ -1812,6 +1813,34 @@ def render_schema_tab():
 
 def render_settings_tab():
     st.markdown("<p class='section-title'>⚙️ Application Settings</p>", unsafe_allow_html=True)
+    
+    # Inject CSS directly for toggle and selectbox to ensure it applies
+    st.markdown("""
+    <style>
+    /* Direct injection for Settings tab */
+    div[data-testid="stToggle"], .stToggle, [data-testid="stToggle"] {
+        background: #ff0000 !important; /* Bright red for testing */
+        padding: 14px 18px !important;
+        border-radius: 18px !important;
+        backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+        margin-bottom: 8px !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    div[data-testid="stSelectbox"] > div > div,
+    [data-testid="stSelectbox"] > div > div,
+    .stSelectbox > div > div {
+        background: #00ff00 !important; /* Bright green for testing */
+        backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(255,255,255,0.15) !important;
+        border-radius: 14px !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     c1, c2 = st.columns(2)
     with c1:
