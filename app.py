@@ -14,7 +14,6 @@ from datetime import datetime
 
 # 2. Now import local components
 from components.data_cleaner import auto_clean_data, generate_cleaning_report
-from components.report_generator import generate_pdf_report
 from utils.kpi_detector import get_all_kpis
 
 import config
@@ -720,8 +719,6 @@ def init_session_state():
         'data_summary': None,
         'query_count': 0,
         'show_chat': False,
-        'pdf_report':      None,
-        'pdf_report_name': None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -1285,69 +1282,6 @@ def render_overview_tab():
         html_table = numeric_df.describe().round(2).to_html(classes="glass-table")
         st.markdown(html_table, unsafe_allow_html=True)
 
-    # ── PDF Export ────────────────────────────────────────────────────────────
-    st.divider()
-    st.markdown("<p class='section-title'>📄 Export Full Report</p>",
-                unsafe_allow_html=True)
-
-    col_btn, col_info = st.columns([1, 2])
-    with col_btn:
-        generate_clicked = st.button(
-            "📄 Generate PDF Report",
-            use_container_width=True,
-            key="gen_pdf_btn",
-        )
-    with col_info:
-        st.caption(
-            "Exports a branded PDF containing the data quality score, "
-            "key metrics, AI executive summary, charts, and cleaning report "
-            "(if Smart Cleaning was applied)."
-        )
-
-    if generate_clicked:
-        with st.spinner("Building your PDF report — exporting charts..."):
-            try:
-                from components.chart_generator import generate_auto_business_visualizations
-
-                # Collect Plotly figures for embedding
-                chart_objects = generate_auto_business_visualizations(
-                    df, st.session_state.column_categories
-                )
-                figures = [c['fig'] for c in chart_objects if 'fig' in c]
-
-                # Re-read health with cleaning override if applied
-                health_for_pdf = get_data_health_score(df, fi)
-
-                pdf_bytes = generate_pdf_report(
-                    df              = df,
-                    fi              = fi,
-                    health          = health_for_pdf,
-                    kpis            = st.session_state.kpis or [],
-                    data_summary    = st.session_state.data_summary,
-                    cleaning_report = st.session_state.get('cleaning_report'),
-                    figures         = figures,
-                    file_name       = st.session_state.get('current_file_name', 'dataset'),
-                )
-
-                # Cache so the download button survives reruns
-                st.session_state.pdf_report       = pdf_bytes
-                base = st.session_state.get('current_file_name', 'report').rsplit('.', 1)[0]
-                st.session_state.pdf_report_name  = f"{base}_querymind_report.pdf"
-
-            except Exception as e:
-                st.error(f"PDF generation failed: {e}")
-
-    # Show download button once PDF is ready (persists across reruns)
-    if st.session_state.get('pdf_report'):
-        st.download_button(
-            label        = "📥 Download PDF Report",
-            data         = st.session_state.pdf_report,
-            file_name    = st.session_state.get('pdf_report_name', 'report.pdf'),
-            mime         = "application/pdf",
-            use_container_width = True,
-            key          = "download_pdf_btn",
-        )
-        st.caption(f"Ready: {st.session_state.get('pdf_report_name', 'report.pdf')}")
 
 # ─────────────────────────────────────────────
 # TAB 3: VISUAL ANALYTICS
@@ -1547,64 +1481,82 @@ def render_refinement_tab():
 
         # ── Apply Smart Cleaning button ──
         if st.button("✨ Apply Smart Cleaning", key="clean_btn", use_container_width=True):
-            _rerun = False
-            with st.spinner("Neural Engine healing your dataset..."):
-                try:
-                    # 1. Snapshot BEFORE state so the report can diff it
-                    df_snapshot = st.session_state.df.copy()
 
-                    # 2. Run the cleaner
-                    cleaned_df = auto_clean_data(st.session_state.df)
+            # ── PRE-FLIGHT: skip if data is already fully clean ────────────
+            _nulls     = int(df.isnull().sum().sum())
+            _dupes     = int(df.duplicated().sum())
+            _neg_cols  = [
+                c for c in df.select_dtypes(include=[np.number]).columns
+                if any(x in c.lower() for x in ['price','qty','quantity','sales','amount'])
+                and bool((df[c].dropna() < 0).any())
+            ]
+            _already_clean = (_nulls == 0 and _dupes == 0 and len(_neg_cols) == 0)
 
-                    # 3. Generate before/after report immediately after cleaning
-                    st.session_state.cleaning_report = generate_cleaning_report(
-                        df_snapshot, cleaned_df
-                    )
+            if _already_clean:
+                st.info(
+                    "✅ Your data is already fully clean — "
+                    "no nulls, no duplicates, no logical errors detected. "
+                    "Smart Cleaning has nothing to fix."
+                )
+            else:
+                _rerun = False
+                with st.spinner("Neural Engine healing your dataset..."):
+                    try:
+                        # 1. Snapshot BEFORE state so the report can diff it
+                        df_snapshot = st.session_state.df.copy()
 
-                    # 4. Rebuild file_info from actual cleaned data
-                    new_fi = fi.copy()
-                    new_fi['num_rows']           = len(cleaned_df)
-                    new_fi['has_missing_values']  = bool(cleaned_df.isnull().any().any())
-                    new_fi['missing_info']        = {}
+                        # 2. Run the cleaner
+                        cleaned_df = auto_clean_data(st.session_state.df)
 
-                    new_fi['column_details'] = []
-                    for col in cleaned_df.columns:
-                        null_count = int(cleaned_df[col].isnull().sum())
-                        new_fi['column_details'].append({
-                            'name':           col,
-                            'type':           str(cleaned_df[col].dtype),
-                            'non_null_count':  int(cleaned_df[col].count()),
-                            'null_count':     null_count,
-                            'unique_count':   int(cleaned_df[col].nunique()),
-                            'percentage':     round(null_count / len(cleaned_df) * 100, 2) if len(cleaned_df) else 0.0
-                        })
+                        # 3. Generate before/after report immediately after cleaning
+                        st.session_state.cleaning_report = generate_cleaning_report(
+                            df_snapshot, cleaned_df
+                        )
 
-                    # 5. Sync all session state
-                    st.session_state.df                = cleaned_df
-                    st.session_state.file_info         = new_fi
-                    st.session_state.column_categories  = detect_column_categories(cleaned_df)
-                    st.session_state.schema            = generate_smart_schema(
-                        cleaned_df, new_fi, st.session_state.column_categories
-                    )
-                    st.session_state.kpis              = get_all_kpis(cleaned_df, new_fi)['kpis']
-                    st.session_state.cleaning_applied   = True
-                    st.session_state.data_summary       = None
-                    generate_ai_summary()
+                        # 4. Rebuild file_info from actual cleaned data
+                        new_fi = fi.copy()
+                        new_fi['num_rows']           = len(cleaned_df)
+                        new_fi['has_missing_values']  = bool(cleaned_df.isnull().any().any())
+                        new_fi['missing_info']        = {}
 
-                    # 6. Sync the SQL database
-                    reset_database()
-                    load_dataframe_to_db(cleaned_df)
+                        new_fi['column_details'] = []
+                        for col in cleaned_df.columns:
+                            null_count = int(cleaned_df[col].isnull().sum())
+                            new_fi['column_details'].append({
+                                'name':           col,
+                                'type':           str(cleaned_df[col].dtype),
+                                'non_null_count':  int(cleaned_df[col].count()),
+                                'null_count':     null_count,
+                                'unique_count':   int(cleaned_df[col].nunique()),
+                                'percentage':     round(null_count / len(cleaned_df) * 100, 2) if len(cleaned_df) else 0.0
+                            })
 
-                    st.success("🎉 Data Healed! Refreshing...")
-                    _rerun = True
+                        # 5. Sync all session state
+                        st.session_state.df                = cleaned_df
+                        st.session_state.file_info         = new_fi
+                        st.session_state.column_categories  = detect_column_categories(cleaned_df)
+                        st.session_state.schema            = generate_smart_schema(
+                            cleaned_df, new_fi, st.session_state.column_categories
+                        )
+                        st.session_state.kpis              = get_all_kpis(cleaned_df, new_fi)['kpis']
+                        st.session_state.cleaning_applied   = True
+                        st.session_state.data_summary       = None
+                        generate_ai_summary()
 
-                except Exception as e:
-                    st.error(f"❌ Cleaning failed: {e}")
+                        # 6. Sync the SQL database
+                        reset_database()
+                        load_dataframe_to_db(cleaned_df)
 
-            # st.rerun() MUST sit outside the spinner — calling it inside
-            # causes RerunException to be swallowed by the spinner's __exit__
-            if _rerun:
-                st.rerun()
+                        st.success("🎉 Data Healed! Refreshing...")
+                        _rerun = True
+
+                    except Exception as e:
+                        st.error(f"❌ Cleaning failed: {e}")
+
+                # st.rerun() MUST sit outside the spinner — calling it inside
+                # causes RerunException to be swallowed by the spinner's __exit__
+                if _rerun:
+                    st.rerun()
 
         # ── Download button — only shown after cleaning is applied ──
         if cleaning_applied:
@@ -1725,7 +1677,7 @@ def reset_all():
               'kpis', 'suggestions', 'chat_history',
               'file_uploaded', 'current_file_name', 'db_loaded',
               'data_summary', 'query_count', 'show_chat',
-              'cleaning_applied', 'pdf_report', 'pdf_report_name',]:   # ← ADD 'cleaning_applied'
+              'cleaning_applied']:   # ← ADD 'cleaning_applied'
         if k in st.session_state:
             del st.session_state[k]
 
