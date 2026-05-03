@@ -492,11 +492,11 @@ def load_css():
     
      /* ── Premium Enhanced Toggle ── */
      
-     /* DEBUG: Test if CSS is loading - bright red background */
+     /* 1. Premium container with glassmorphism - ULTRA SPECIFIC */
      div[data-testid="stToggle"], .stToggle, [data-testid="stToggle"] {
-         background: #ff0000 !important; /* Bright red for testing */
          padding: 14px 18px !important;
          border-radius: 18px !important;
+         background: rgba(255, 255, 255, 0.05) !important;
          backdrop-filter: blur(20px) !important;
          border: 1px solid rgba(255, 255, 255, 0.1) !important;
          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
@@ -723,11 +723,10 @@ def load_css():
      }
 
      /* ── Premium Selectbox Styling ── */
-     /* DEBUG: Test if CSS is loading - bright green background */
      div[data-testid="stSelectbox"] > div > div,
      [data-testid="stSelectbox"] > div > div,
      .stSelectbox > div > div {
-         background: #00ff00 !important; /* Bright green for testing */
+         background: rgba(255,255,255,0.05) !important;
          backdrop-filter: blur(20px) !important;
          border: 1px solid rgba(255,255,255,0.15) !important;
          border-radius: 14px !important;
@@ -1817,11 +1816,11 @@ def render_settings_tab():
     # Inject CSS directly for toggle and selectbox to ensure it applies
     st.markdown("""
     <style>
-    /* Direct injection for Settings tab */
+    /* Direct injection for Settings tab - Premium Styles */
     div[data-testid="stToggle"], .stToggle, [data-testid="stToggle"] {
-        background: #ff0000 !important; /* Bright red for testing */
         padding: 14px 18px !important;
         border-radius: 18px !important;
+        background: rgba(255, 255, 255, 0.05) !important;
         backdrop-filter: blur(20px) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
@@ -1829,15 +1828,102 @@ def render_settings_tab():
         transition: all 0.3s ease !important;
     }
     
+    div[data-testid="stToggle"]:hover, .stToggle:hover, [data-testid="stToggle"]:hover {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: rgba(102, 126, 234, 0.3) !important;
+        box-shadow: 0 12px 40px rgba(102, 126, 234, 0.15) !important;
+    }
+    
+    div[data-testid="stToggle"] p, .stToggle p, [data-testid="stToggle"] p,
+    div[data-testid="stToggle"] label, .stToggle label, [data-testid="stToggle"] label {
+        font-weight: 800 !important;
+        background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%) !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        background-clip: text !important;
+        font-size: 1.15rem !important;
+        letter-spacing: 0.3px !important;
+        margin-bottom: 8px !important;
+        color: transparent !important;
+    }
+    
     div[data-testid="stSelectbox"] > div > div,
     [data-testid="stSelectbox"] > div > div,
     .stSelectbox > div > div {
-        background: #00ff00 !important; /* Bright green for testing */
+        background: rgba(255,255,255,0.05) !important;
         backdrop-filter: blur(20px) !important;
         border: 1px solid rgba(255,255,255,0.15) !important;
         border-radius: 14px !important;
         transition: all 0.3s ease !important;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+    }
+    
+    div[data-testid="stSelectbox"] > div > div:hover,
+    [data-testid="stSelectbox"] > div > div:hover,
+    .stSelectbox > div > div:hover {
+        border-color: rgba(102, 126, 234, 0.6) !important;
+        box-shadow: 0 0 20px rgba(102, 126, 234, 0.3) !important;
+        background: rgba(255,255,255,0.08) !important;
+    }
+    
+    div[data-testid="stSelectbox"] .stSelectbox-label,
+    [data-testid="stSelectbox"] .stSelectbox-label,
+    .stSelectbox .stSelectbox-label,
+    div[data-testid="stSelectbox"] label,
+    [data-testid="stSelectbox"] label,
+    .stSelectbox label {
+        color: #f7fafc !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        letter-spacing: 0.3px !important;
+    }
+    
+    /* Dropdown menu styling */
+    div[data-testid="stSelectbox"] div[role="listbox"],
+    [data-testid="stSelectbox"] div[role="listbox"],
+    .stSelectbox div[role="listbox"] {
+        background: rgba(20, 20, 40, 0.95) !important;
+        backdrop-filter: blur(30px) !important;
+        border: 1px solid rgba(102, 126, 234, 0.3) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4) !important;
+        margin-top: 8px !important;
+        overflow: hidden !important;
+        padding: 8px 0 !important;
+        max-height: 300px !important;
+        overflow-y: auto !important;
+        z-index: 9999 !important;
+    }
+    
+    div[data-testid="stSelectbox"] div[role="option"],
+    [data-testid="stSelectbox"] div[role="option"],
+    .stSelectbox div[role="option"] {
+        color: rgba(255,255,255,0.8) !important;
+        padding: 12px 16px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.95rem !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+        border-left: 3px solid transparent !important;
+        cursor: pointer !important;
+    }
+    
+    div[data-testid="stSelectbox"] div[role="option"]:hover,
+    [data-testid="stSelectbox"] div[role="option"]:hover,
+    .stSelectbox div[role="option"]:hover {
+        background: rgba(102, 126, 234, 0.2) !important;
+        color: #ffffff !important;
+        border-left-color: #667eea !important;
+        padding-left: 20px !important;
+    }
+    
+    div[data-testid="stSelectbox"] div[role="option"][aria-selected="true"],
+    [data-testid="stSelectbox"] div[role="option"][aria-selected="true"],
+    .stSelectbox div[role="option"][aria-selected="true"] {
+        background: linear-gradient(90deg, rgba(102, 126, 234, 0.25), rgba(167, 139, 250, 0.15)) !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        border-left-color: #a78bfa !important;
     }
     </style>
     """, unsafe_allow_html=True)
