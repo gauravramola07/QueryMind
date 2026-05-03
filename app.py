@@ -1847,6 +1847,101 @@ def render_settings_tab():
         color: transparent !important;
     }
     
+    /* Enhanced switch container - larger with glow */
+    div[data-testid="stToggle"] div[role="switch"],
+    .stToggle div[role="switch"],
+    [data-testid="stToggle"] div[role="switch"] {
+        height: 2rem !important;
+        width: 3.8rem !important;
+        background: rgba(255, 255, 255, 0.12) !important;
+        border: 1px solid rgba(255, 255, 255, 0.25) !important;
+        border-radius: 100px !important;
+        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+        position: relative !important;
+        overflow: hidden !important;
+    }
+    
+    /* Inner glow effect */
+    div[data-testid="stToggle"] div[role="switch"]::before,
+    .stToggle div[role="switch"]::before,
+    [data-testid="stToggle"] div[role="switch"]::before {
+        content: '' !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, transparent 70%) !important;
+        opacity: 0 !important;
+        transition: opacity 0.3s ease !important;
+        z-index: 1 !important;
+    }
+    
+    /* ACTIVE state - vibrant gradient with strong glow */
+    div[data-testid="stToggle"] div[aria-checked="true"],
+    div[data-testid="stToggle"] div[role="switch"][aria-checked="true"],
+    .stToggle div[aria-checked="true"],
+    .stToggle div[role="switch"][aria-checked="true"],
+    [data-testid="stToggle"] div[aria-checked="true"],
+    [data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #a78bfa 100%) !important;
+        border-color: rgba(255, 255, 255, 0.4) !important;
+        box-shadow: 0 0 25px rgba(102, 126, 234, 0.8), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+    }
+    
+    div[data-testid="stToggle"] div[aria-checked="true"]::before,
+    div[data-testid="stToggle"] div[role="switch"][aria-checked="true"]::before,
+    .stToggle div[aria-checked="true"]::before,
+    .stToggle div[role="switch"][aria-checked="true"]::before,
+    [data-testid="stToggle"] div[aria-checked="true"]::before,
+    [data-testid="stToggle"] div[role="switch"][aria-checked="true"]::before {
+        opacity: 1 !important;
+    }
+    
+    /* Enhanced moving knob - larger with shadow and animation */
+    div[data-testid="stToggle"] div[role="switch"] > div,
+    .stToggle div[role="switch"] > div,
+    [data-testid="stToggle"] div[role="switch"] > div {
+        background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%) !important;
+        border: none !important;
+        width: 1.8rem !important;
+        height: 1.8rem !important;
+        border-radius: 50% !important;
+        transform: translateX(0) scale(1) !important;
+        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 8px rgba(255,255,255,0.2) !important;
+        position: relative !important;
+        left: 2px !important;
+        z-index: 2 !important;
+    }
+    
+    /* Knob position when ON */
+    div[data-testid="stToggle"] div[aria-checked="true"] > div,
+    div[data-testid="stToggle"] div[role="switch"][aria-checked="true"] > div,
+    .stToggle div[aria-checked="true"] > div,
+    .stToggle div[role="switch"][aria-checked="true"] > div,
+    [data-testid="stToggle"] div[aria-checked="true"] > div,
+    [data-testid="stToggle"] div[role="switch"][aria-checked="true"] > div {
+        transform: translateX(1.8rem) scale(1) !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 12px rgba(167, 139, 250, 0.5) !important;
+    }
+    
+    /* Knob hover effect */
+    div[data-testid="stToggle"] div[role="switch"]:hover > div,
+    .stToggle div[role="switch"]:hover > div,
+    [data-testid="stToggle"] div[role="switch"]:hover > div {
+        transform: scale(1.05) !important;
+    }
+    
+    div[data-testid="stToggle"] div[aria-checked="true"]:hover > div,
+    div[data-testid="stToggle"] div[role="switch"][aria-checked="true"]:hover > div,
+    .stToggle div[aria-checked="true"]:hover > div,
+    .stToggle div[role="switch"][aria-checked="true"]:hover > div,
+    [data-testid="stToggle"] div[aria-checked="true"]:hover > div,
+    [data-testid="stToggle"] div[role="switch"][aria-checked="true"]:hover > div {
+        transform: translateX(1.8rem) scale(1.05) !important;
+    }
+    
     div[data-testid="stSelectbox"] > div > div,
     [data-testid="stSelectbox"] > div > div,
     .stSelectbox > div > div {
