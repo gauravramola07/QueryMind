@@ -1812,113 +1812,197 @@ def render_schema_tab():
 
 def render_settings_tab():
     st.markdown("<p class='section-title'>⚙️ Application Settings</p>", unsafe_allow_html=True)
-    
-    # Inject CSS directly for toggle and selectbox to ensure it applies
+
+    # ── Dark-theme CSS — matching the app's glass/purple palette ─────────────
     st.markdown("""
     <style>
-    /* ULTRA VISIBLE TEST STYLES - Should be impossible to miss */
-    
-    /* 1. Toggle container - BRIGHT YELLOW with thick red border */
-    div[data-testid="stToggle"], .stToggle, [data-testid="stToggle"] {
-        padding: 14px 18px !important;
-        border-radius: 18px !important;
-        background: #ffff00 !important; /* Bright yellow */
-        backdrop-filter: blur(20px) !important;
-        border: 5px solid #ff0000 !important; /* Thick red border */
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
-        margin-bottom: 8px !important;
-        transition: all 0.3s ease !important;
+
+    /* ── Selectbox: dark glass card, purple accent ── */
+    div[data-testid="stSelectbox"] > div > div {
+        background: rgba(26, 26, 62, 0.85) !important;
+        backdrop-filter: blur(12px) !important;
+        border: 1px solid rgba(102, 126, 234, 0.35) !important;
+        border-radius: 12px !important;
+        color: #f7fafc !important;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+        padding: 2px 8px !important;
     }
-    
-    /* 2. Toggle label - BRIGHT PINK with huge font */
-    div[data-testid="stToggle"] p, .stToggle p, [data-testid="stToggle"] p,
-    div[data-testid="stToggle"] label, .stToggle label, [data-testid="stToggle"] label {
-        font-weight: 900 !important;
-        color: #ff00ff !important; /* Bright pink */
-        font-size: 1.5rem !important; /* Larger font */
-        letter-spacing: 0.3px !important;
-        margin-bottom: 8px !important;
-        text-decoration: underline !important;
+    div[data-testid="stSelectbox"] > div > div:hover,
+    div[data-testid="stSelectbox"] > div > div:focus-within {
+        border-color: rgba(102, 126, 234, 0.75) !important;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15),
+                    0 4px 16px rgba(0, 0, 0, 0.3) !important;
     }
-    
-    /* 3. Switch container - BRIGHT ORANGE with thick blue border */
-    div[data-testid="stToggle"] div[role="switch"],
-    .stToggle div[role="switch"],
-    [data-testid="stToggle"] div[role="switch"] {
-        height: 2rem !important;
-        width: 3.8rem !important;
-        background: #ff9900 !important; /* Bright orange */
-        border: 3px solid #0000ff !important; /* Thick blue border */
-        border-radius: 100px !important;
-        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-        position: relative !important;
-        overflow: hidden !important;
+    /* Selectbox inner text */
+    div[data-testid="stSelectbox"] span,
+    div[data-testid="stSelectbox"] div[class*="singleValue"] {
+        color: #f7fafc !important;
+        font-size: 0.95rem !important;
+        font-weight: 500 !important;
     }
-    
-    /* 4. Switch knob - BRIGHT GREEN with purple border */
-    div[data-testid="stToggle"] div[role="switch"] > div,
-    .stToggle div[role="switch"] > div,
-    [data-testid="stToggle"] div[role="switch"] > div {
-        background: #00ff00 !important; /* Bright green */
-        border: 2px solid #800080 !important; /* Purple border */
-        width: 1.8rem !important;
-        height: 1.8rem !important;
-        border-radius: 50% !important;
-        transform: translateX(0) scale(1) !important;
-        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 8px rgba(255,255,255,0.2) !important;
-        position: relative !important;
-        left: 2px !important;
-        z-index: 2 !important;
-    }
-    
-    /* 5. Selectbox - BRIGHT CYAN with thick magenta border */
-    div[data-testid="stSelectbox"] > div > div,
-    [data-testid="stSelectbox"] > div > div,
-    .stSelectbox > div > div {
-        background: #00ffff !important; /* Bright cyan */
-        backdrop-filter: blur(20px) !important;
-        border: 4px solid #ff00ff !important; /* Thick magenta border */
-        border-radius: 14px !important;
-        transition: all 0.3s ease !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
-    }
-    
-    /* 6. Selectbox label - BRIGHT RED */
-    div[data-testid="stSelectbox"] .stSelectbox-label,
-    [data-testid="stSelectbox"] .stSelectbox-label,
-    .stSelectbox .stSelectbox-label,
+    /* Selectbox label */
     div[data-testid="stSelectbox"] label,
-    [data-testid="stSelectbox"] label,
-    .stSelectbox label {
-        color: #ff0000 !important; /* Bright red */
-        font-weight: 900 !important;
-        font-size: 1.2rem !important;
-        letter-spacing: 0.3px !important;
-        text-decoration: underline !important;
+    div[data-testid="stSelectbox"] > label {
+        color: #a78bfa !important;
+        font-weight: 600 !important;
+        font-size: 0.85rem !important;
+        letter-spacing: 0.4px !important;
+        text-transform: uppercase !important;
+        text-decoration: none !important;
+    }
+    /* Dropdown arrow */
+    div[data-testid="stSelectbox"] svg {
+        fill: #a78bfa !important;
+    }
+    /* Dropdown list panel */
+    div[data-baseweb="popover"] ul,
+    div[data-baseweb="menu"] {
+        background: rgba(22, 22, 50, 0.97) !important;
+        border: 1px solid rgba(102, 126, 234, 0.3) !important;
+        border-radius: 12px !important;
+        backdrop-filter: blur(20px) !important;
+        padding: 6px !important;
+    }
+    /* Each dropdown option */
+    div[data-baseweb="menu"] li,
+    div[data-baseweb="popover"] li {
+        border-radius: 8px !important;
+        color: #f7fafc !important;
+        font-size: 0.9rem !important;
+        padding: 8px 12px !important;
+        transition: background 0.15s ease !important;
+    }
+    div[data-baseweb="menu"] li:hover,
+    div[data-baseweb="popover"] li:hover {
+        background: rgba(102, 126, 234, 0.2) !important;
+        color: #a78bfa !important;
+    }
+    /* Selected option highlight */
+    div[data-baseweb="menu"] li[aria-selected="true"],
+    div[data-baseweb="popover"] li[aria-selected="true"] {
+        background: rgba(102, 126, 234, 0.3) !important;
+        color: #a78bfa !important;
+        font-weight: 600 !important;
+    }
+
+    /* ── Toggle: glass card, purple track when ON ── */
+    div[data-testid="stToggle"] {
+        background: rgba(26, 26, 62, 0.6) !important;
+        border: 1px solid rgba(102, 126, 234, 0.25) !important;
+        border-radius: 14px !important;
+        padding: 12px 16px !important;
+        backdrop-filter: blur(12px) !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+        transition: border-color 0.2s ease !important;
+        text-decoration: none !important;
+        margin-bottom: 4px !important;
+    }
+    div[data-testid="stToggle"]:hover {
+        border-color: rgba(102, 126, 234, 0.5) !important;
+    }
+    /* Toggle label text */
+    div[data-testid="stToggle"] label p,
+    div[data-testid="stToggle"] p {
+        color: #e2e8f0 !important;
+        font-size: 0.95rem !important;
+        font-weight: 500 !important;
+        text-decoration: none !important;
+        letter-spacing: 0.2px !important;
+    }
+    /* Toggle track (the pill shape) */
+    div[data-testid="stToggle"] div[role="switch"] {
+        background: rgba(45, 55, 72, 0.9) !important;
+        border: 1.5px solid rgba(102, 126, 234, 0.3) !important;
+        border-radius: 100px !important;
+        height: 1.5rem !important;
+        width: 3rem !important;
+        transition: background 0.25s ease, border-color 0.25s ease !important;
+    }
+    /* Track when checked/ON */
+    div[data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
+        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        border-color: #667eea !important;
+        box-shadow: 0 0 10px rgba(102, 126, 234, 0.4) !important;
+    }
+    /* Toggle knob */
+    div[data-testid="stToggle"] div[role="switch"] > div {
+        background: #ffffff !important;
+        border: none !important;
+        width: 1.15rem !important;
+        height: 1.15rem !important;
+        border-radius: 50% !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35) !important;
+        transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
+    # ── Layout ────────────────────────────────────────────────────────────────
     c1, c2 = st.columns(2)
+
     with c1:
-        st.markdown("#### 🤖 AI Configuration")
-        st.write(f"**Status:** {'✅ Connected' if st.session_state.llm_ready else '❌ Offline'}")
-        st.write(f"**Model:** {config.LLM_MODEL}")
-        st.write(f"**Provider:** Groq AI")
+        # AI status card
+        ai_status  = '✅ Connected' if st.session_state.llm_ready else '❌ Offline'
+        status_clr = '#48bb78'      if st.session_state.llm_ready else '#fc8181'
+        st.markdown(f"""
+        <div style='background:rgba(26,26,62,0.6);border:1px solid rgba(102,126,234,0.25);
+                    border-radius:16px;padding:1.2rem 1.4rem;margin-bottom:1rem;
+                    backdrop-filter:blur(12px);'>
+            <p style='color:#a78bfa;font-size:0.75rem;font-weight:700;
+                      letter-spacing:0.8px;text-transform:uppercase;margin:0 0 0.8rem 0;'>
+                🤖 AI Configuration
+            </p>
+            <div style='display:flex;flex-direction:column;gap:0.45rem;'>
+                <div style='display:flex;justify-content:space-between;align-items:center;'>
+                    <span style='color:#a0aec0;font-size:0.88rem;'>Status</span>
+                    <span style='color:{status_clr};font-weight:600;font-size:0.88rem;'>
+                        {ai_status}
+                    </span>
+                </div>
+                <div style='display:flex;justify-content:space-between;align-items:center;'>
+                    <span style='color:#a0aec0;font-size:0.88rem;'>Model</span>
+                    <span style='color:#f7fafc;font-weight:500;font-size:0.88rem;'>
+                        {config.LLM_MODEL}
+                    </span>
+                </div>
+                <div style='display:flex;justify-content:space-between;align-items:center;'>
+                    <span style='color:#a0aec0;font-size:0.88rem;'>Provider</span>
+                    <span style='color:#f7fafc;font-weight:500;font-size:0.88rem;'>
+                        Groq AI
+                    </span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         if not st.session_state.llm_ready:
             if st.button("🔄 Reconnect AI", use_container_width=True, key="reconnect_ai"):
                 initialize_llm()
                 st.rerun()
 
     with c2:
-        st.markdown("#### 📊 Display Settings")
+        st.markdown("""
+        <p style='color:#a78bfa;font-size:0.75rem;font-weight:700;
+                  letter-spacing:0.8px;text-transform:uppercase;margin:0 0 0.6rem 0;'>
+            📊 Display Settings
+        </p>
+        """, unsafe_allow_html=True)
+
         chart_opts = get_chart_type_options()
         st.session_state.chart_type = st.selectbox(
-            "Default Chart Type", list(chart_opts.keys()),
-            format_func=lambda x: chart_opts[x], index=0
+            "Default Chart Type",
+            list(chart_opts.keys()),
+            format_func=lambda x: chart_opts[x],
+            index=0,
         )
-        st.session_state.show_sql = st.toggle("Show SQL Queries", value=True)
+
+        st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+
+        st.session_state.show_sql = st.toggle(
+            "Show SQL Queries",
+            value=st.session_state.get('show_sql', True),
+        )
 
     st.divider()
     c1, c2, c3 = st.columns(3)
