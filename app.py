@@ -490,80 +490,72 @@ def load_css():
         background: linear-gradient(135deg, #764ba2, #667eea) !important;
     }
     
-    /* ── The Ironclad AI Toggle ── */
-    
-    /* 1. Target the overall container to add a premium border */
-    [data-testid="stToggle"] {
-        padding: 10px !important;
-        border-radius: 15px !important;
-        background: rgba(255, 255, 255, 0.02) !important;
-        border: 1px solid rgba(255, 255, 255, 0.05) !important;
-    }
-
-    /* 2. Target the label text specifically */
-    [data-testid="stToggle"] p {
-        font-weight: 700 !important;
-        color: white !important;
-        font-size: 1.1rem !important;
-    }
-
-    /* 3. The "Switch" container - forcing the background to NEVER be red */
-    [data-testid="stToggle"] div[role="switch"] {
-        height: 1.5rem !important;
-        width: 2.8rem !important;
-        background-color: rgba(255, 255, 255, 0.1) !important; /* Default OFF color */
-    }
-
-    /* 4. Target the ACTIVE state - Using multiple selectors to "win" the CSS war */
-    [data-testid="stToggle"] div[aria-checked="true"],
-    [data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
-        background: linear-gradient(135deg, #667eea, #764ba2) !important;
-        background-color: transparent !important; /* Kills the red layer underneath */
-        box-shadow: 0 0 15px rgba(102, 126, 234, 0.6) !important;
-    }
-
-    /* 5. Target the moving knob - making it larger and cleaner */
-    [data-testid="stToggle"] div[role="switch"] > div {
-        background-color: white !important;
-        border: none !important;
-        transform: scale(0.9) !important;
-    }
-                
-    /* ── Premium Action Buttons (Generate PDF, Download PDF, Download CSV, Download Cleaned) ── */
-     div[data-testid="stButton"] button[kind="primary"],
-     div[data-testid="stButton"] button[kind="secondary"] {
-         background: linear-gradient(135deg, #667eea, #764ba2) !important;
-         border: none !important;
-         border-radius: 14px !important;
-         color: white !important;
-         font-weight: 600 !important;
-         padding: 0.8rem 1.5rem !important;
-         transition: all 0.3s ease !important;
-         box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
-     }
+     /* ── The Ironclad AI Toggle ── */
      
-     div[data-testid="stButton"] button[kind="primary"]:hover,
-     div[data-testid="stButton"] button[kind="secondary"]:hover {
-         transform: translateY(-2px) !important;
-         box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5) !important;
-         background: linear-gradient(135deg, #764ba2, #667eea) !important;
+     /* 1. Target the overall container to add a premium border */
+     [data-testid="stToggle"] {
+         padding: 10px !important;
+         border-radius: 15px !important;
+         background: rgba(255, 255, 255, 0.02) !important;
+         border: 1px solid rgba(255, 255, 255, 0.05) !important;
      }
-
-     /* ── Premium Toggle Switch Styling ── */
+ 
+     /* 2. Target the label text specifically */
+     [data-testid="stToggle"] p {
+         font-weight: 700 !important;
+         color: white !important;
+         font-size: 1.1rem !important;
+     }
+ 
+     /* 3. The "Switch" container - forcing the background to NEVER be red */
      [data-testid="stToggle"] div[role="switch"] {
-         background: rgba(255, 255, 255, 0.1) !important;
+         height: 1.5rem !important;
+         width: 2.8rem !important;
+         background-color: rgba(255, 255, 255, 0.1) !important; /* Default OFF color */
          border: 1px solid rgba(255, 255, 255, 0.2) !important;
          transition: all 0.3s ease !important;
      }
-     [data-testid="stToggle"] div[aria-checked="true"] {
+ 
+     /* 4. Target the ACTIVE state - Using multiple selectors to "win" the CSS war */
+     [data-testid="stToggle"] div[aria-checked="true"],
+     [data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
          background: linear-gradient(135deg, #667eea, #764ba2) !important;
-         box-shadow: 0 0 15px rgba(102, 126, 234, 0.5) !important;
+         background-color: transparent !important; /* Kills the red layer underneath */
+         box-shadow: 0 0 15px rgba(102, 126, 234, 0.6) !important;
+         border: 1px solid rgba(255, 255, 255, 0.3) !important;
      }
+ 
+     /* 5. Target the moving knob - making it larger and cleaner */
      [data-testid="stToggle"] div[role="switch"] > div {
-         background: white !important;
+         background-color: white !important;
          border: none !important;
+         width: 1.5rem !important;
+         height: 1.5rem !important;
+         transform: scale(0.9) !important;
          transition: transform 0.3s ease !important;
      }
+                 
+     /* ── Premium Action Buttons (Generate PDF, Download PDF, Download CSV, Download Cleaned) ── */
+      div[data-testid="stButton"] button[kind="primary"],
+      div[data-testid="stButton"] button[kind="secondary"],
+      div[data-testid="stDownloadButton"] button {
+          background: linear-gradient(135deg, #667eea, #764ba2) !important;
+          border: none !important;
+          border-radius: 14px !important;
+          color: white !important;
+          font-weight: 600 !important;
+          padding: 0.8rem 1.5rem !important;
+          transition: all 0.3s ease !important;
+          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
+      }
+      
+      div[data-testid="stButton"] button[kind="primary"]:hover,
+      div[data-testid="stButton"] button[kind="secondary"]:hover,
+      div[data-testid="stDownloadButton"] button:hover {
+          transform: translateY(-2px) !important;
+          box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5) !important;
+          background: linear-gradient(135deg, #764ba2, #667eea) !important;
+      }
 
      div[data-testid="stButton"] button[type="secondary"] {
          background: rgba(255,255,255,0.06) !important;
