@@ -1050,13 +1050,12 @@ def init_session_state():
         'cleaning_report': None,   # before/after diff from generate_cleaning_report()
         'pdf_report': None,        # raw bytes of last generated PDF
         'pdf_report_name': None,   # filename for the download button
-        # ── Join feature ──────────────────────────────────────────────────
-        'df2':                None,   # second uploaded DataFrame
-        'file_info2':         None,   # file_info for second file
-        'current_file2_name': None,   # filename of second upload
+        # ── Join feature (N-file pool) ────────────────────────────────────
+        'extra_files':        [],     # list of {name, df, fi, size_mb}
         'join_candidates':    None,   # ranked list from detect_joinable_columns
+        'join_right_name':    None,   # currently selected right-file name
         'merged_df':          None,   # result of merge_dataframes
-        'df_original':        None,   # backup of primary df before merge
+        'df_original':        None,   # backup of original primary df
         'using_merged':       False,  # True → chat/SQL use merged_df
     }
     for k, v in defaults.items():
@@ -2145,21 +2144,73 @@ def render_settings_tab():
                 generate_ai_summary()
                 st.rerun()
 
+# ─────────────────────────────────────────────
+# JOIN TAB HELPERS
+# ─────────────────────────────────────────────
+
+_MAX_TOTAL_MB = 200.0
+
+def _build_merged_fi(merged_df, name: str) -> dict:
+    """
+    Build a file_info dict for a merged DataFrame that is fully compatible
+    with ALL helpers including get_data_health_score (needs 'missing_percentage').
+    """
+    total_cells = len(merged_df) * len(merged_df.columns)
+    null_total  = int(merged_df.isnull().sum().sum())
+    missing_pct = round(null_total / total_cells * 100, 2) if total_cells > 0 else 0.0
+
+    col_details  = []
+    missing_info = {}
+    for col in merged_df.columns:
+        nc  = int(merged_df[col].isnull().sum())
+        pct = round(nc / len(merged_df) * 100, 2) if len(merged_df) else 0.0
+        col_details.append({
+            "name": col, "type": str(merged_df[col].dtype),
+            "non_null_count": int(merged_df[col].count()),
+            "null_count": nc, "unique_count": int(merged_df[col].nunique()),
+            "percentage": pct,
+        })
+        if nc > 0:
+            missing_info[col] = {"count": nc, "percentage": pct}
+
+    return {
+        "file_name":          name,
+        "file_size":          f"{merged_df.memory_usage(deep=True).sum() / 1024:.1f} KB",
+        "num_rows":           len(merged_df),
+        "num_cols":           len(merged_df.columns),
+        "has_missing_values": null_total > 0,
+        "missing_percentage": missing_pct,   # ← fixes KeyError in helpers.py
+        "missing_info":       missing_info,
+        "column_details":     col_details,
+    }
+
+
+def _pool_total_mb() -> float:
+    """Total MB across primary df + all extra files."""
+    primary_mb = st.session_state.df.memory_usage(deep=True).sum() / (1024 * 1024) \
+                 if st.session_state.df is not None else 0.0
+    extra_mb   = sum(f["size_mb"] for f in st.session_state.get("extra_files", []))
+    return primary_mb + extra_mb
+
+
+# ─────────────────────────────────────────────
+# JOIN TAB
+# ─────────────────────────────────────────────
+
 def render_join_tab():
     """
-    Multi-file Upload + Auto Join Detection Tab.
+    Multi-File Upload + Auto Join Detection (N files, up to 200 MB total).
 
     Flow:
-      1. Upload a second CSV/XLSX
-      2. detect_joinable_columns() scores all column pairs
-      3. User picks columns + join type → live preview → Apply
-      4. On Apply: st.session_state.df ← merged; SQL DB reloaded; schema updated
-      5. Revert button restores the original single-file state
+      1. Upload any number of extra CSV/XLSX (tracked in 'extra_files' pool)
+      2. Pick "right" file from pool → auto-detect join candidates
+      3. Configure columns + join type → preview → Apply
+      4. On Apply: merged result becomes primary; consumed file leaves pool
+      5. Repeat to chain further joins
+      6. Revert restores the original single-file state
     """
-    st.markdown(
-        "<p class='section-title'>🔗 Multi-File Join & Merge</p>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<p class='section-title'>🔗 Multi-File Join & Merge</p>",
+                unsafe_allow_html=True)
 
     df1 = st.session_state.df
     fi1 = st.session_state.file_info
@@ -2167,7 +2218,10 @@ def render_join_tab():
         st.info("Upload a primary file first.")
         return
 
-    # ── Active-merge status banner ────────────────────────────────────────────
+    extra_files: list = st.session_state.get("extra_files", [])
+    total_mb = _pool_total_mb()
+
+    # ── Active-merge banner ───────────────────────────────────────────────────
     if st.session_state.get("using_merged"):
         merged = st.session_state.merged_df
         st.markdown(f"""
@@ -2180,8 +2234,9 @@ def render_join_tab():
                     Merged Dataset Active
                 </p>
                 <p style='color:rgba(255,255,255,0.55);font-size:0.82rem;margin:0.2rem 0 0;'>
-                    Chat &amp; SQL are running on the combined dataset —
+                    Chat &amp; SQL running on combined dataset —
                     {merged.shape[0]:,} rows × {merged.shape[1]} columns
+                    {'· ' + str(len(extra_files)) + ' file(s) still in pool' if extra_files else ''}
                 </p>
             </div>
         </div>
@@ -2197,9 +2252,11 @@ def render_join_tab():
                 reset_database()
                 load_dataframe_to_db(orig)
                 st.session_state.update({
-                    "df": orig, "schema": schema, "column_categories": cats,
+                    "df": orig, "file_info": fi1,
+                    "schema": schema, "column_categories": cats,
                     "kpis": kpis["kpis"], "suggestions": sugs,
                     "using_merged": False, "merged_df": None,
+                    "extra_files": [],
                     "db_loaded": True, "chat_history": [],
                     "query_count": 0, "data_summary": None,
                 })
@@ -2207,154 +2264,223 @@ def render_join_tab():
                 st.rerun()
         st.divider()
 
-    # ── Primary + second file summary cards ──────────────────────────────────
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.markdown(f"""
-        <div class='glass-card' style='padding:1rem;'>
-            <p style='color:#a78bfa;font-size:0.75rem;font-weight:700;
-                      letter-spacing:0.8px;text-transform:uppercase;margin:0 0 0.5rem;'>
-                📄 Primary File
-            </p>
-            <p style='color:#f7fafc;font-weight:700;margin:0;font-size:1rem;'>
-                {fi1.get('file_name','dataset')}
-            </p>
-            <p style='color:rgba(255,255,255,0.45);font-size:0.82rem;margin:0.3rem 0 0;'>
-                {df1.shape[0]:,} rows × {df1.shape[1]} columns
-            </p>
+    # ── File pool cards ───────────────────────────────────────────────────────
+    st.markdown("<p class='section-title' style='font-size:0.9rem;'>📂 Dataset Pool</p>",
+                unsafe_allow_html=True)
+
+    # Build dynamic column grid: primary + up to N extras
+    all_cards = [{"label": "📄 PRIMARY", "name": fi1.get("file_name", "primary"),
+                  "rows": df1.shape[0], "cols": df1.shape[1], "is_primary": True}]
+    for ef in extra_files:
+        all_cards.append({"label": "📄 EXTRA", "name": ef["name"],
+                          "rows": ef["df"].shape[0], "cols": ef["df"].shape[1],
+                          "is_primary": False, "size_mb": ef["size_mb"]})
+
+    # Show cards in rows of 3
+    for row_start in range(0, len(all_cards), 3):
+        cols = st.columns(min(3, len(all_cards) - row_start))
+        for ci, card in enumerate(all_cards[row_start:row_start+3]):
+            border = "rgba(102,126,234,0.5)" if card["is_primary"] else "rgba(72,187,120,0.3)"
+            lbl_color = "#a78bfa" if card["is_primary"] else "#48bb78"
+            with cols[ci]:
+                st.markdown(f"""
+                <div class='glass-card' style='padding:0.9rem;border:1px solid {border};'>
+                    <p style='color:{lbl_color};font-size:0.7rem;font-weight:700;
+                              letter-spacing:0.8px;text-transform:uppercase;margin:0 0 0.3rem;'>
+                        {card["label"]}
+                    </p>
+                    <p style='color:#f7fafc;font-weight:700;margin:0;font-size:0.88rem;
+                              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>
+                        {card["name"]}
+                    </p>
+                    <p style='color:rgba(255,255,255,0.45);font-size:0.78rem;margin:0.25rem 0 0;'>
+                        {card["rows"]:,} rows × {card["cols"]} cols
+                        {f"· {card.get('size_mb',0):.1f} MB" if not card["is_primary"] else ""}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # Total-size meter
+    pct_used = min(total_mb / _MAX_TOTAL_MB * 100, 100)
+    bar_color = "#fc8181" if pct_used > 90 else "#ecc94b" if pct_used > 70 else "#48bb78"
+    st.markdown(f"""
+    <div style='margin:0.8rem 0;'>
+        <div style='display:flex;justify-content:space-between;margin-bottom:4px;'>
+            <span style='color:rgba(255,255,255,0.5);font-size:0.78rem;'>Total pool size</span>
+            <span style='color:{bar_color};font-size:0.78rem;font-weight:700;'>
+                {total_mb:.1f} MB / {_MAX_TOTAL_MB:.0f} MB
+            </span>
         </div>
-        """, unsafe_allow_html=True)
-    with col_b:
-        fi2 = st.session_state.get("file_info2")
-        df2 = st.session_state.get("df2")
-        if fi2 and df2 is not None:
-            st.markdown(f"""
-            <div class='glass-card' style='padding:1rem;border:1px solid rgba(72,187,120,0.3);'>
-                <p style='color:#48bb78;font-size:0.75rem;font-weight:700;
-                          letter-spacing:0.8px;text-transform:uppercase;margin:0 0 0.5rem;'>
-                    ✅ Second File Loaded
-                </p>
-                <p style='color:#f7fafc;font-weight:700;margin:0;font-size:1rem;'>
-                    {fi2.get('file_name','file2')}
-                </p>
-                <p style='color:rgba(255,255,255,0.45);font-size:0.82rem;margin:0.3rem 0 0;'>
-                    {df2.shape[0]:,} rows × {df2.shape[1]} columns
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class='glass-card' style='padding:1rem;border:2px dashed rgba(102,126,234,0.3);'>
-                <p style='color:#a78bfa;font-size:0.75rem;font-weight:700;
-                          letter-spacing:0.8px;text-transform:uppercase;margin:0 0 0.5rem;'>
-                    📄 Second File
-                </p>
-                <p style='color:rgba(255,255,255,0.4);font-size:0.85rem;margin:0;'>
-                    Upload below →
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+        <div style='background:rgba(255,255,255,0.08);border-radius:6px;height:6px;'>
+            <div style='background:{bar_color};width:{pct_used:.1f}%;height:6px;
+                        border-radius:6px;transition:width 0.4s ease;'></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # ── Uploader ──────────────────────────────────────────────────────────────
+    # ── Multi-file uploader ───────────────────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(
-        "<p class='section-title' style='font-size:0.9rem;'>📤 Upload Second Dataset</p>",
-        unsafe_allow_html=True,
-    )
-    uploaded2 = st.file_uploader(
-        "Second file",
+    st.markdown("<p class='section-title' style='font-size:0.9rem;'>📤 Add Files to Pool</p>",
+                unsafe_allow_html=True)
+    st.caption(f"Upload any number of CSV / Excel files. Combined pool must stay under "
+               f"{_MAX_TOTAL_MB:.0f} MB. Each file joins with the current primary dataset.")
+
+    uploaded_list = st.file_uploader(
+        "Add files",
         type=["csv", "xlsx", "xls"],
+        accept_multiple_files=True,
         label_visibility="collapsed",
-        key="second_file_uploader",
+        key="multi_file_uploader",
     )
 
-    if uploaded2 and uploaded2.name != st.session_state.get("current_file2_name"):
-        with st.spinner(f"📊 Loading {uploaded2.name}..."):
-            r2 = load_file(uploaded2)
-        if not r2["success"]:
-            st.error(f"Could not load file: {r2['error']}")
-            return
+    if uploaded_list:
+        existing_names = {ef["name"] for ef in extra_files}
+        new_files_added = 0
+        size_errors = []
+
+        for uf in uploaded_list:
+            if uf.name in existing_names:
+                continue   # already in pool
+
+            size_mb = uf.size / (1024 * 1024)
+            projected = _pool_total_mb() + size_mb
+
+            if projected > _MAX_TOTAL_MB:
+                size_errors.append(
+                    f"'{uf.name}' skipped — adding it would exceed the "
+                    f"{_MAX_TOTAL_MB:.0f} MB pool limit "
+                    f"({projected:.1f} MB projected)."
+                )
+                continue
+
+            with st.spinner(f"Loading {uf.name}..."):
+                r = load_file(uf)
+
+            if not r["success"]:
+                st.error(f"Could not load '{uf.name}': {r['error']}")
+                continue
+
+            extra_files.append({
+                "name":    uf.name,
+                "df":      r["dataframe"],
+                "fi":      r["file_info"],
+                "size_mb": size_mb,
+            })
+            existing_names.add(uf.name)
+            new_files_added += 1
+
+        if size_errors:
+            for msg in size_errors:
+                st.warning(f"⚠️ {msg}")
+
+        if new_files_added:
+            st.session_state["extra_files"]     = extra_files
+            st.session_state["join_candidates"] = None   # reset on pool change
+            st.session_state["join_right_name"] = None
+            st.rerun()
+
+    # ── Remove a file from pool ───────────────────────────────────────────────
+    if extra_files:
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.expander("🗑️ Remove a file from pool"):
+            remove_name = st.selectbox(
+                "Select file to remove", [ef["name"] for ef in extra_files],
+                key="remove_file_sel"
+            )
+            if st.button("Remove selected file", key="remove_file_btn"):
+                st.session_state["extra_files"]     = [ef for ef in extra_files
+                                                        if ef["name"] != remove_name]
+                st.session_state["join_candidates"] = None
+                st.session_state["join_right_name"] = None
+                st.rerun()
+
+    # ── Need at least one extra file to proceed ───────────────────────────────
+    if not extra_files:
+        st.info("⬆️ Upload one or more files above to start joining.")
+        return
+
+    st.divider()
+
+    # ── Right-file selector ───────────────────────────────────────────────────
+    st.markdown("<p class='section-title'>🎯 Configure Join</p>", unsafe_allow_html=True)
+
+    extra_names = [ef["name"] for ef in extra_files]
+    saved_right = st.session_state.get("join_right_name")
+    default_idx = extra_names.index(saved_right) if saved_right in extra_names else 0
+
+    right_name = st.selectbox(
+        "Join primary with →",
+        extra_names,
+        index=default_idx,
+        key="right_file_selectbox",
+        help="Select which extra file to merge into the primary dataset",
+    )
+
+    # Auto-detect whenever the right file changes
+    right_entry = next((ef for ef in extra_files if ef["name"] == right_name), None)
+    if right_entry is None:
+        return
+
+    if st.session_state.get("join_right_name") != right_name:
         with st.spinner("🔍 Detecting joinable columns..."):
-            cands = detect_joinable_columns(df1, r2["dataframe"])
-        st.session_state.update({
-            "df2":                r2["dataframe"],
-            "file_info2":         r2["file_info"],
-            "current_file2_name": uploaded2.name,
-            "join_candidates":    cands,
-        })
+            cands = detect_joinable_columns(df1, right_entry["df"])
+        st.session_state["join_candidates"] = cands
+        st.session_state["join_right_name"] = right_name
         st.rerun()
 
-    # ── Need both files to continue ───────────────────────────────────────────
-    df2        = st.session_state.get("df2")
     candidates = st.session_state.get("join_candidates") or []
-    if df2 is None:
-        st.caption("⬆️ Upload a second CSV or Excel file to get started.")
-        return
+    df2 = right_entry["df"]
 
-    # ── Join candidates table ─────────────────────────────────────────────────
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(
-        "<p class='section-title'>🎯 Auto-Detected Join Candidates</p>",
-        unsafe_allow_html=True,
-    )
+    # ── Candidates table ──────────────────────────────────────────────────────
+    st.markdown("<p class='section-title' style='margin-top:1rem;'>📊 Auto-Detected Join Candidates</p>",
+                unsafe_allow_html=True)
 
     if not candidates:
-        st.warning(
-            "⚠️ No joinable column pairs detected. "
-            "Columns need at least a shared word in their names to be considered."
-        )
-        st.info(
-            "Tip: rename your key column so both files share a common word "
-            "(e.g. 'order_id' ↔ 'order_id', or 'customer_id' ↔ 'cust_id')."
-        )
-        return
+        st.warning("⚠️ No joinable column pairs detected between these two files. "
+                   "Column names must share at least one common word.")
+        st.info("Tip: rename the key column so both files share a word, e.g. "
+                "'order_id' ↔ 'order_id', or 'customer_id' ↔ 'cust_id'.")
+    else:
+        cand_rows = []
+        for i, c in enumerate(candidates):
+            cand_rows.append({
+                "#":               i + 1,
+                "Primary Column":  c["col_df1"],
+                "Second Column":   c["col_df2"],
+                "Name Match":      c["name_match"],
+                "Type Compat.":    "✅" if c["type_compatible"] else "❌",
+                "Value Overlap %": f"{c['value_overlap']}%",
+                "Score / 100":     c["score"],
+                "Status":          "✅ Recommended" if c["recommended"] else "⚠️ Weak",
+                "Join Hint":       c["join_hint"],
+            })
+        cand_html = pd.DataFrame(cand_rows).to_html(index=False, classes="glass-table")
+        st.markdown(f'<div style="overflow-x:auto;padding-bottom:10px;">{cand_html}</div>',
+                    unsafe_allow_html=True)
+        st.caption("Score = name similarity (0–40) + type compatibility (0–20) + "
+                   "value overlap / Jaccard (0–40). Recommended ≥ 55.")
 
-    cand_rows = []
-    for i, c in enumerate(candidates):
-        cand_rows.append({
-            "#":                 i + 1,
-            "Primary Column":    c["col_df1"],
-            "Second Column":     c["col_df2"],
-            "Name Match":        c["name_match"],
-            "Type Compat.":      "✅" if c["type_compatible"] else "❌",
-            "Value Overlap %":   f"{c['value_overlap']}%",
-            "Score / 100":       c["score"],
-            "Status":            "✅ Recommended" if c["recommended"] else "⚠️ Weak",
-            "Join Hint":         c["join_hint"],
-        })
-    cand_html = pd.DataFrame(cand_rows).to_html(index=False, classes="glass-table")
-    st.markdown(
-        f'<div style="overflow-x:auto;padding-bottom:10px;">{cand_html}</div>',
-        unsafe_allow_html=True,
-    )
-    st.caption(
-        "Score = name similarity (0–40) + type compatibility (0–20) + "
-        "value overlap / Jaccard (0–40).  Recommended threshold: ≥ 55."
-    )
-
-    # ── Join configuration ────────────────────────────────────────────────────
+    # ── Column + join-type selectors ──────────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(
-        "<p class='section-title'>⚙️ Configure Join</p>",
-        unsafe_allow_html=True,
-    )
-    best      = candidates[0]
     all_cols1 = list(df1.columns)
     all_cols2 = list(df2.columns)
+    best       = candidates[0] if candidates else {}
 
     cfg1, cfg2, cfg3 = st.columns(3)
     with cfg1:
         left_col = st.selectbox(
-            "Primary file column",
+            "Primary column",
             all_cols1,
-            index=all_cols1.index(best["col_df1"]) if best["col_df1"] in all_cols1 else 0,
+            index=all_cols1.index(best.get("col_df1", all_cols1[0]))
+                  if best.get("col_df1") in all_cols1 else 0,
             key="join_left_col",
         )
     with cfg2:
         right_col = st.selectbox(
-            "Second file column",
+            f"Column from '{right_name}'",
             all_cols2,
-            index=all_cols2.index(best["col_df2"]) if best["col_df2"] in all_cols2 else 0,
+            index=all_cols2.index(best.get("col_df2", all_cols2[0]))
+                  if best.get("col_df2") in all_cols2 else 0,
             key="join_right_col",
         )
     with cfg3:
@@ -2362,15 +2488,15 @@ def render_join_tab():
             "Join type",
             ["inner", "left", "right", "outer"],
             format_func=lambda x: {
-                "inner": "🔵 Inner  (matching rows only)",
-                "left":  "⬅️ Left   (all primary rows)",
-                "right": "➡️ Right  (all second rows)",
+                "inner": "🔵 Inner (matching rows only)",
+                "left":  "⬅️ Left  (all primary rows)",
+                "right": "➡️ Right (all right-file rows)",
                 "outer": "🔷 Full Outer (all rows)",
             }[x],
             key="join_type_sel",
         )
 
-    # ── Preview button ────────────────────────────────────────────────────────
+    # ── Preview ───────────────────────────────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("👁️ Preview Merge Result", key="preview_merge_btn"):
         with st.spinner("Merging for preview..."):
@@ -2387,31 +2513,33 @@ def render_join_tab():
                     f"<p class='kpi-val'>{val}</p><p class='kpi-lbl'>{lbl}</p></div>",
                     unsafe_allow_html=True,
                 )
-            _met(m1, f"{r1:,}",           "Primary Rows")
-            _met(m2, f"{r2_cnt:,}",       "Second Rows")
-            _met(m3, f"{pv['rows_merged']:,}", "Merged Rows")
-            _met(m4, str(pv["cols_merged"]),   "Total Cols")
+            _met(m1, f"{r1:,}",                "Primary Rows")
+            _met(m2, f"{r2_cnt:,}",            f"'{right_name}' Rows")
+            _met(m3, f"{pv['rows_merged']:,}",  "Merged Rows")
+            _met(m4, str(pv["cols_merged"]),    "Total Cols")
 
             if pv.get("dropped_rows", 0) > 0:
                 st.warning(
-                    f"⚠️ {pv['dropped_rows']:,} primary-file rows had no match and were "
-                    f"dropped. Switch to 'Left' join to keep all primary rows."
+                    f"⚠️ {pv['dropped_rows']:,} primary-file rows had no match and were dropped. "
+                    f"Switch to 'Left' join to keep all primary rows."
                 )
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown(
-                "<p class='section-title' style='font-size:0.85rem;'>🔍 Preview (first 10 rows)</p>",
-                unsafe_allow_html=True,
-            )
+            st.markdown("<p class='section-title' style='font-size:0.85rem;'>"
+                        "🔍 Preview (first 10 rows)</p>", unsafe_allow_html=True)
             st.markdown(
                 f'<div style="overflow-x:auto;">'
                 f'{pv_df.head(10).to_html(index=False, classes="glass-table")}</div>',
                 unsafe_allow_html=True,
             )
 
-    # ── Apply merge ───────────────────────────────────────────────────────────
+    # ── Apply ─────────────────────────────────────────────────────────────────
+    pool_left = len(extra_files) - 1   # files remaining after this join
+    btn_label = (
+        f"✅ Apply Merge & Activate for Chat / SQL  "
+        f"({pool_left} file{'s' if pool_left != 1 else ''} will remain in pool)"
+    )
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("✅ Apply Merge & Activate for Chat / SQL", key="apply_merge_btn",
-                 use_container_width=True):
+    if st.button(btn_label, key="apply_merge_btn", use_container_width=True):
         with st.spinner("🔗 Merging and reloading database..."):
             result = merge_dataframes(
                 df1, df2, left_on=left_col, right_on=right_col, how=join_type
@@ -2421,28 +2549,8 @@ def render_join_tab():
             return
 
         merged_df = result["dataframe"]
-        fi2       = st.session_state.get("file_info2", {})
-
-        merged_fi = {
-            "file_name":          f"{fi1.get('file_name','')} ⋈ {fi2.get('file_name','')}",
-            "num_rows":           len(merged_df),
-            "num_cols":           len(merged_df.columns),
-            "has_missing_values": bool(merged_df.isnull().any().any()),
-            "missing_info":       {},
-            "column_details": [
-                {
-                    "name":           col,
-                    "type":           str(merged_df[col].dtype),
-                    "non_null_count": int(merged_df[col].count()),
-                    "null_count":     int(merged_df[col].isnull().sum()),
-                    "unique_count":   int(merged_df[col].nunique()),
-                    "percentage":     round(
-                        merged_df[col].isnull().sum() / len(merged_df) * 100, 2
-                    ) if len(merged_df) else 0.0,
-                }
-                for col in merged_df.columns
-            ],
-        }
+        merged_name = f"{fi1.get('file_name','')} ⋈ {right_name}"
+        merged_fi   = _build_merged_fi(merged_df, merged_name)   # ← includes missing_percentage
 
         cats   = detect_column_categories(merged_df)
         schema = generate_smart_schema(merged_df, merged_fi, cats)
@@ -2452,9 +2560,12 @@ def render_join_tab():
         reset_database()
         load_dataframe_to_db(merged_df)
 
-        # Back up original df only once
+        # Back up original df only on first merge
         if not st.session_state.get("df_original"):
             st.session_state["df_original"] = df1.copy()
+
+        # Remove consumed right file from pool
+        new_pool = [ef for ef in extra_files if ef["name"] != right_name]
 
         st.session_state.update({
             "df":               merged_df,
@@ -2466,6 +2577,9 @@ def render_join_tab():
             "db_loaded":        True,
             "using_merged":     True,
             "merged_df":        merged_df,
+            "extra_files":      new_pool,
+            "join_candidates":  None,
+            "join_right_name":  None,
             "chat_history":     [],
             "query_count":      0,
             "data_summary":     None,
@@ -2473,13 +2587,19 @@ def render_join_tab():
             "cleaning_report":  None,
         })
         generate_ai_summary()
-        st.success(
-            f"✅ Merge applied!  "
-            f"{result['rows_merged']:,} rows × {result['cols_merged']} columns.  "
-            f"Chat & SQL now use the combined dataset."
-        )
-        st.rerun()
 
+        if new_pool:
+            st.success(
+                f"✅ Merge applied! {result['rows_merged']:,} rows × "
+                f"{result['cols_merged']} cols. "
+                f"{len(new_pool)} file(s) still in pool — join another one!"
+            )
+        else:
+            st.success(
+                f"✅ All files merged! {result['rows_merged']:,} rows × "
+                f"{result['cols_merged']} cols. Chat & SQL use the combined dataset."
+            )
+        st.rerun()
 
 def render_refinement_tab():
     st.markdown("<p class='section-title'>✨ AI Data Refinement & Healing</p>", unsafe_allow_html=True)
@@ -2720,9 +2840,9 @@ def reset_all():
         'data_summary', 'query_count', 'show_chat',
         'cleaning_applied', 'cleaning_report',
         'pdf_report', 'pdf_report_name',
-        # join-feature keys
-        'df2', 'file_info2', 'current_file2_name',
-        'join_candidates', 'merged_df', 'df_original', 'using_merged',
+        # join-feature keys (N-file pool)
+        'extra_files', 'join_candidates', 'join_right_name',
+        'merged_df', 'df_original', 'using_merged',
     ]:
         if k in st.session_state:
             del st.session_state[k]
