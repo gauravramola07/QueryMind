@@ -2168,8 +2168,9 @@ def _build_merged_fi(merged_df, name: str) -> dict:
             "num_rows": 0, "num_cols": 0,
             "has_missing_values": False, "missing_percentage": 0.0,
             "missing_info": {}, "column_details": [],
-            "numeric_columns": [], "categorical_columns": [],
-            "datetime_columns": [], "boolean_columns": [],
+            "numeric_columns": [], "text_columns": [],
+            "date_columns": [], "boolean_columns": [],
+            "categorical_columns": [], "datetime_columns": [],
         }
 
     total_cells = len(merged_df) * len(merged_df.columns)
@@ -2193,17 +2194,18 @@ def _build_merged_fi(merged_df, name: str) -> dict:
             missing_info[col] = {"count": nc, "percentage": pct}
 
     # ── Column-type groups ────────────────────────────────────────────────────
-    # These are required by get_data_health_score (helpers.py line 512+) and
-    # other downstream helpers.  Previously absent → KeyError on first rerender
-    # after Apply Merge was clicked.
-    numeric_cols     = merged_df.select_dtypes(include="number").columns.tolist()
-    categorical_cols = merged_df.select_dtypes(
+    # Key names must match EXACTLY what helpers.py/get_data_health_score reads:
+    #   file_info['numeric_columns']  (line 512)
+    #   file_info['text_columns']     (line 513)  ← NOT 'categorical_columns'
+    #   file_info['date_columns']     (line 514)  ← NOT 'datetime_columns'
+    numeric_cols  = merged_df.select_dtypes(include="number").columns.tolist()
+    text_cols     = merged_df.select_dtypes(
         include=["object", "category"]
     ).columns.tolist()
-    datetime_cols    = merged_df.select_dtypes(
+    date_cols     = merged_df.select_dtypes(
         include=["datetime", "datetimetz"]
     ).columns.tolist()
-    boolean_cols     = merged_df.select_dtypes(include="bool").columns.tolist()
+    boolean_cols  = merged_df.select_dtypes(include="bool").columns.tolist()
 
     return {
         "file_name":           name,
@@ -2214,11 +2216,14 @@ def _build_merged_fi(merged_df, name: str) -> dict:
         "missing_percentage":  missing_pct,
         "missing_info":        missing_info,
         "column_details":      col_details,
-        # Column-type groups — required by get_data_health_score & kpi_detector
+        # Exact key names required by helpers.py → get_data_health_score
         "numeric_columns":     numeric_cols,
-        "categorical_columns": categorical_cols,
-        "datetime_columns":    datetime_cols,
+        "text_columns":        text_cols,       # helpers.py line 513
+        "date_columns":        date_cols,       # helpers.py line 514
         "boolean_columns":     boolean_cols,
+        # Aliases kept for any other helper that uses the longer names
+        "categorical_columns": text_cols,
+        "datetime_columns":    date_cols,
     }
 
 
