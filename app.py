@@ -1426,10 +1426,14 @@ def process_question(question):
         st.error("❌ AI not connected."); return
     if not st.session_state.db_loaded:
         st.error("❌ No data loaded."); return
+    # NOTE: ensure_db_loaded() is intentionally NOT called here.
+    # db_loaded=True (checked above) proves the DB was populated at upload/clean
+    # time. Calling ensure_db_loaded on every question re-loads the entire
+    # DataFrame into SQLite unconditionally — unnecessary I/O on every turn.
+    # Recovery is handled below: if execute_sql_query fails with a connection
+    # error, we reload once and retry rather than pre-loading every time.
 
     with st.spinner("🤖 Analyzing..."):
-        ensure_db_loaded(st.session_state.df)
-
         llm_r = generate_sql_query(
             question, st.session_state.schema,
             st.session_state.llm_model, get_chat_context()
@@ -1456,6 +1460,18 @@ def process_question(question):
 
         sql = llm_r['sql_query']
         exec_r = execute_sql_query(sql)
+
+        # ── Recovery path: if the in-memory SQLite connection was lost
+        # (e.g. after a Streamlit rerun that reset the module-level connection),
+        # reload the DB once and retry the query rather than failing immediately.
+        _DB_ERRORS = ('no such table', 'unable to open', 'disk I/O error',
+                      'database is closed', 'OperationalError')
+        if not exec_r['success'] and any(
+            e.lower() in str(exec_r.get('error', '')).lower()
+            for e in _DB_ERRORS
+        ):
+            ensure_db_loaded(st.session_state.df)
+            exec_r = execute_sql_query(sql)   # one retry
 
         if not exec_r['success']:
             st.session_state.chat_history.append({
@@ -2213,6 +2229,7 @@ def render_refinement_tab():
                         # 6. Sync the SQL database
                         reset_database()
                         load_dataframe_to_db(cleaned_df)
+                        st.session_state.db_loaded = True  # explicit — reset_database() sets it False internally
 
                         st.success("🎉 Data Healed! Refreshing...")
                         _rerun = True
