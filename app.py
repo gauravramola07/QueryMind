@@ -14,6 +14,7 @@ from datetime import datetime
 
 # 2. Now import local components
 from components.data_cleaner import auto_clean_data, generate_cleaning_report
+from components.report_generator import generate_pdf_report
 from utils.kpi_detector import get_all_kpis
 
 import config
@@ -719,6 +720,9 @@ def init_session_state():
         'data_summary': None,
         'query_count': 0,
         'show_chat': False,
+        'cleaning_report': None,   # before/after diff from generate_cleaning_report()
+        'pdf_report': None,        # raw bytes of last generated PDF
+        'pdf_report_name': None,   # filename for the download button
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -1282,6 +1286,76 @@ def render_overview_tab():
         html_table = numeric_df.describe().round(2).to_html(classes="glass-table")
         st.markdown(html_table, unsafe_allow_html=True)
 
+    # ── PDF Export ────────────────────────────────────────────────────────────
+    st.divider()
+    st.markdown("<p class='section-title'>📄 Export Full Report</p>",
+                unsafe_allow_html=True)
+
+    col_btn, col_info = st.columns([1, 2])
+    with col_btn:
+        generate_clicked = st.button(
+            "📄 Generate PDF Report",
+            use_container_width=True,
+            key="gen_pdf_btn",
+        )
+    with col_info:
+        st.caption(
+            "Exports a branded PDF containing the data quality score, "
+            "key metrics, AI executive summary, charts, and cleaning report "
+            "(if Smart Cleaning was applied)."
+        )
+
+    if generate_clicked:
+        with st.spinner("Building your PDF report…"):
+            try:
+                # Collect Plotly figures if the visual analytics tab generated them
+                figures = []
+                try:
+                    from components.chart_generator import generate_auto_business_visualizations
+                    chart_objects = generate_auto_business_visualizations(
+                        df, st.session_state.column_categories
+                    )
+                    figures = [c['fig'] for c in chart_objects if 'fig' in c]
+                except Exception:
+                    figures = []   # graceful — matplotlib fallback kicks in
+
+                health_for_pdf = get_data_health_score(df, fi)
+
+                pdf_bytes = generate_pdf_report(
+                    df              = df,
+                    fi              = fi,
+                    health          = health_for_pdf,
+                    kpis            = st.session_state.kpis or [],
+                    data_summary    = st.session_state.data_summary,
+                    cleaning_report = st.session_state.get('cleaning_report'),
+                    figures         = figures,
+                    file_name       = st.session_state.get('current_file_name', 'dataset'),
+                )
+
+                base = st.session_state.get('current_file_name', 'report').rsplit('.', 1)[0]
+                st.session_state.pdf_report      = pdf_bytes
+                st.session_state.pdf_report_name = f"{base}_querymind_report.pdf"
+                st.success("✅ PDF ready — click Download below.")
+
+            except Exception as e:
+                st.error(f"PDF generation failed: {e}")
+
+    # Persists across reruns once generated
+    if st.session_state.get('pdf_report'):
+        st.download_button(
+            label               = "📥 Download PDF Report",
+            data                = st.session_state.pdf_report,
+            file_name           = st.session_state.get('pdf_report_name', 'report.pdf'),
+            mime                = "application/pdf",
+            use_container_width = True,
+            key                 = "download_pdf_btn",
+        )
+        size_kb = len(st.session_state.pdf_report) // 1024
+        st.caption(
+            f"Ready: **{st.session_state.get('pdf_report_name', 'report.pdf')}** "
+            f"({size_kb} KB)"
+        )
+
 
 # ─────────────────────────────────────────────
 # TAB 3: VISUAL ANALYTICS
@@ -1677,7 +1751,8 @@ def reset_all():
               'kpis', 'suggestions', 'chat_history',
               'file_uploaded', 'current_file_name', 'db_loaded',
               'data_summary', 'query_count', 'show_chat',
-              'cleaning_applied']:   # ← ADD 'cleaning_applied'
+              'cleaning_applied', 'cleaning_report',
+              'pdf_report', 'pdf_report_name']:   # clear on file re-upload
         if k in st.session_state:
             del st.session_state[k]
 
