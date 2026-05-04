@@ -222,7 +222,7 @@ def format_kpi_value(value, format_type):
 def generate_smart_schema(df, file_info, column_categories):
     """
     Generate a comprehensive, smart schema description
-    This is what gets sent to Gemini as context
+    This is what gets sent to the LLM (Groq) as context
     
     Args:
         df: pandas DataFrame
