@@ -1036,16 +1036,62 @@ def load_animated_bg():
 
 def load_footer():
     st.markdown("""
+    <style>
+    .premium-footer {
+        position: relative; margin-top: 4rem; border-radius: 16px 16px 0 0;
+        background: rgba(10,10,26,0.6); backdrop-filter: blur(20px);
+        padding: 1.8rem 2rem 1.4rem; text-align: center; overflow: hidden;
+    }
+    .premium-footer::before {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg,
+            rgba(102,126,234,0) 0%, rgba(102,126,234,0.8) 20%,
+            rgba(167,139,250,1) 50%, rgba(240,147,251,0.8) 80%,
+            rgba(102,126,234,0) 100%);
+        animation: aurora-sweep 4s ease-in-out infinite alternate;
+    }
+    @keyframes aurora-sweep {
+        from { opacity: 0.5; background-position: 0% 50%; }
+        to   { opacity: 1;   background-position: 100% 50%; }
+    }
+    .footer-inner {
+        display: flex; align-items: center; justify-content: center;
+        flex-wrap: wrap; gap: 0.6rem 1.5rem;
+    }
+    .footer-text { font-size: 0.75rem; color: rgba(255,255,255,0.3) !important; margin: 0; letter-spacing: 0.5px; }
+    .footer-name { color: #a78bfa !important; font-weight: 600; }
+    .footer-div  { color: rgba(255,255,255,0.12) !important; margin: 0 0.3rem; }
+    .footer-badge {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        padding: 0.2rem 0.7rem; border-radius: 50px; font-size: 0.65rem;
+        font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
+        background: rgba(102,126,234,0.12);
+        border: 1px solid rgba(102,126,234,0.25);
+        color: #a78bfa !important;
+    }
+    .footer-badge-dot {
+        width: 5px; height: 5px; border-radius: 50%;
+        background: #48bb78; box-shadow: 0 0 6px #48bb78;
+        animation: footer-dot-blink 2s ease-in-out infinite;
+    }
+    @keyframes footer-dot-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    </style>
     <div class='premium-footer'>
-        <p class='footer-text'>
-            Copyright 2026 <span class='footer-name'>QueryMind</span>
-            <span class='footer-div'>|</span>
-            Developed by <span class='footer-name'>Gaurav Ramola</span>
-            <span class='footer-div'>|</span>
-            MBA - AI & Data Science
-            <span class='footer-div'>|</span>
-            Graphic Era University
-        </p>
+        <div class="footer-inner">
+            <p class='footer-text'>
+                &copy; 2026 <span class='footer-name'>QueryMind</span>
+                <span class='footer-div'>|</span>
+                Developed by <span class='footer-name'>Gaurav Ramola</span>
+                <span class='footer-div'>|</span>
+                MBA · AI &amp; Data Science
+                <span class='footer-div'>|</span>
+                Graphic Era University
+            </p>
+            <span class="footer-badge">
+                <span class="footer-badge-dot"></span>
+                v2.0 Live
+            </span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1389,6 +1435,69 @@ def render_welcome():
     </div>
     """, unsafe_allow_html=True)
 
+    # ── Infinite Scrolling Ticker ──
+    st.markdown("""
+    <style>
+    .ticker-outer {
+        overflow: hidden; position: relative;
+        margin: 0.5rem 0 1.8rem 0;
+        padding: 0.65rem 0;
+        border-top: 1px solid rgba(255,255,255,0.05);
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        background: rgba(255,255,255,0.02);
+        mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
+        -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
+    }
+    .ticker-track {
+        display: flex; width: max-content;
+        animation: ticker-scroll 35s linear infinite;
+    }
+    .ticker-outer:hover .ticker-track { animation-play-state: paused; }
+    @keyframes ticker-scroll {
+        from { transform: translateX(0); }
+        to   { transform: translateX(-50%); }
+    }
+    .ticker-item {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        padding: 0 2.2rem; font-size: 0.78rem; font-weight: 600;
+        color: rgba(255,255,255,0.4) !important;
+        white-space: nowrap; letter-spacing: 0.4px;
+    }
+    .ticker-item .t-icon { font-size: 0.9rem; }
+    .ticker-sep {
+        display: inline-block; width: 4px; height: 4px; border-radius: 50%;
+        background: linear-gradient(135deg, #667eea, #a78bfa);
+        flex-shrink: 0; opacity: 0.6;
+    }
+    </style>
+    <div class="ticker-outer">
+      <div class="ticker-track">
+        <!-- First copy -->
+        <span class="ticker-item"><span class="t-icon">✨</span> No SQL Required</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🚀</span> Powered by LLaMA 3.3</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">📊</span> 50+ Chart Types</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🧹</span> Auto Data Cleaning</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🔗</span> Multi-File Join & Merge</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🎯</span> KPI Auto-Detection</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">📄</span> PDF Report Export</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🧠</span> Natural Language Queries</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">⚡</span> Real-Time Insights</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🔒</span> 100% Local Processing</span><span class="ticker-sep"></span>
+        <!-- Duplicate for seamless loop -->
+        <span class="ticker-item"><span class="t-icon">✨</span> No SQL Required</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🚀</span> Powered by LLaMA 3.3</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">📊</span> 50+ Chart Types</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🧹</span> Auto Data Cleaning</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🔗</span> Multi-File Join & Merge</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🎯</span> KPI Auto-Detection</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">📄</span> PDF Report Export</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🧠</span> Natural Language Queries</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">⚡</span> Real-Time Insights</span><span class="ticker-sep"></span>
+        <span class="ticker-item"><span class="t-icon">🔒</span> 100% Local Processing</span><span class="ticker-sep"></span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     col1, col2, col3 = st.columns(3)
     features = [
         ("💬", "Natural Language Queries", "Ask questions in plain English. No SQL or coding required."),
@@ -1404,6 +1513,131 @@ def render_welcome():
                 <div class='feat-desc'>{desc}</div>
             </div>
             """, unsafe_allow_html=True)
+
+    # ── Animated Stats Row ──
+    st.markdown("""
+    <style>
+    /* ── How It Works ── */
+    .hiw-wrap {
+        margin: 2.2rem auto 0.5rem auto; max-width: 860px; text-align: center;
+    }
+    .hiw-label {
+        font-size: 0.7rem; font-weight: 700; letter-spacing: 2.5px;
+        text-transform: uppercase; color: rgba(167,139,250,0.7) !important;
+        margin-bottom: 1.2rem;
+    }
+    .hiw-steps {
+        display: flex; align-items: center; justify-content: center;
+        gap: 0; flex-wrap: nowrap;
+    }
+    .hiw-step {
+        flex: 1; display: flex; flex-direction: column;
+        align-items: center; gap: 0.5rem; position: relative;
+        animation: hiw-rise 0.7s cubic-bezier(0.34,1.4,0.64,1) both;
+    }
+    .hiw-step:nth-child(1) { animation-delay: 0.1s; }
+    .hiw-step:nth-child(3) { animation-delay: 0.25s; }
+    .hiw-step:nth-child(5) { animation-delay: 0.4s; }
+    .hiw-step:nth-child(7) { animation-delay: 0.55s; }
+    @keyframes hiw-rise {
+        from { opacity: 0; transform: translateY(24px) scale(0.9); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .hiw-icon-wrap {
+        width: 62px; height: 62px; border-radius: 50%;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.1);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.6rem; position: relative;
+        transition: all 0.4s ease;
+        box-shadow: 0 0 0 0 rgba(102,126,234,0);
+        animation: hiw-pulse 3s ease-in-out infinite;
+    }
+    .hiw-step:nth-child(1) .hiw-icon-wrap { animation-delay: 0s; }
+    .hiw-step:nth-child(3) .hiw-icon-wrap { animation-delay: 0.75s; }
+    .hiw-step:nth-child(5) .hiw-icon-wrap { animation-delay: 1.5s; }
+    .hiw-step:nth-child(7) .hiw-icon-wrap { animation-delay: 2.25s; }
+    @keyframes hiw-pulse {
+        0%,100% { box-shadow: 0 0 0 0 rgba(102,126,234,0.3), 0 0 20px rgba(102,126,234,0.1); border-color: rgba(255,255,255,0.1); }
+        50%      { box-shadow: 0 0 0 8px rgba(102,126,234,0), 0 0 30px rgba(167,139,250,0.3); border-color: rgba(167,139,250,0.4); }
+    }
+    .hiw-num {
+        position: absolute; top: -6px; right: -6px;
+        width: 18px; height: 18px; border-radius: 50%;
+        background: linear-gradient(135deg, #667eea, #a78bfa);
+        font-size: 0.6rem; font-weight: 800; color: white !important;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 2px 8px rgba(102,126,234,0.5);
+    }
+    .hiw-title {
+        font-size: 0.82rem; font-weight: 700;
+        color: rgba(255,255,255,0.8) !important; margin: 0;
+    }
+    .hiw-desc {
+        font-size: 0.7rem; color: rgba(255,255,255,0.3) !important;
+        line-height: 1.4; max-width: 90px; text-align: center;
+    }
+    .hiw-connector {
+        flex: 0 0 40px; height: 1px; position: relative; margin-bottom: 28px;
+        background: linear-gradient(90deg, rgba(102,126,234,0.3), rgba(167,139,250,0.6), rgba(102,126,234,0.3));
+        overflow: visible;
+    }
+    .hiw-connector::after {
+        content: ''; position: absolute; top: -2px; left: 0; right: 0; height: 5px;
+        background: linear-gradient(90deg, transparent, rgba(167,139,250,0.8), transparent);
+        animation: connector-flow 2s ease-in-out infinite;
+        border-radius: 3px;
+    }
+    .hiw-step:nth-child(4) .hiw-connector::after { animation-delay: 0.5s; }
+    .hiw-step:nth-child(6) .hiw-connector::after { animation-delay: 1s; }
+    @keyframes connector-flow {
+        0%   { transform: translateX(-100%); opacity: 0; }
+        50%  { opacity: 1; }
+        100% { transform: translateX(100%); opacity: 0; }
+    }
+    </style>
+
+    <div class="hiw-wrap">
+        <div class="hiw-label">⚡ How It Works</div>
+        <div class="hiw-steps">
+            <div class="hiw-step">
+                <div class="hiw-icon-wrap">
+                    <span>📁</span>
+                    <div class="hiw-num">1</div>
+                </div>
+                <div class="hiw-title">Upload</div>
+                <div class="hiw-desc">Drop your CSV or Excel file</div>
+            </div>
+            <div class="hiw-connector"></div>
+            <div class="hiw-step">
+                <div class="hiw-icon-wrap">
+                    <span>💬</span>
+                    <div class="hiw-num">2</div>
+                </div>
+                <div class="hiw-title">Ask</div>
+                <div class="hiw-desc">Type your question in plain English</div>
+            </div>
+            <div class="hiw-connector"></div>
+            <div class="hiw-step">
+                <div class="hiw-icon-wrap">
+                    <span>📊</span>
+                    <div class="hiw-num">3</div>
+                </div>
+                <div class="hiw-title">Visualize</div>
+                <div class="hiw-desc">AI generates charts instantly</div>
+            </div>
+            <div class="hiw-connector"></div>
+            <div class="hiw-step">
+                <div class="hiw-icon-wrap">
+                    <span>🎯</span>
+                    <div class="hiw-num">4</div>
+                </div>
+                <div class="hiw-title">Decide</div>
+                <div class="hiw-desc">Act on AI-powered insights</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # ── Animated Stats Row ──
     st.markdown("""
@@ -1526,14 +1760,72 @@ def render_welcome():
 
     # ── Upload Zone Text & Icon ──
     st.markdown("""
-    <div style='text-align: center; margin: 2rem auto 1rem auto; max-width: 600px;'>
-        <div style='font-size: 3.5rem; margin-bottom: 0.5rem; filter: drop-shadow(0 0 15px rgba(102,126,234,0.4));'>📁</div>
-        <div style='font-size: 1.3rem; font-weight: 700; color: #f7fafc !important;'>
-            Upload your dataset for AI based analytics
+    <style>
+    .drop-zone-hero {
+        text-align: center; margin: 2rem auto 1rem auto; max-width: 600px;
+        position: relative; padding: 0.5rem 0;
+    }
+    .drop-zone-rings {
+        position: relative; display: inline-flex;
+        align-items: center; justify-content: center;
+        width: 90px; height: 90px; margin-bottom: 1rem;
+    }
+    .drop-zone-rings::before, .drop-zone-rings::after {
+        content: ''; position: absolute; border-radius: 50%;
+        border: 1px solid rgba(102,126,234,0.35);
+        animation: ring-expand 2.5s ease-out infinite;
+    }
+    .drop-zone-rings::before { width: 100%; height: 100%; animation-delay: 0s; }
+    .drop-zone-rings::after  { width: 100%; height: 100%; animation-delay: 1.25s; }
+    .ring-3 {
+        position: absolute; width: 100%; height: 100%; border-radius: 50%;
+        border: 1px solid rgba(167,139,250,0.2);
+        animation: ring-expand 2.5s ease-out infinite 0.6s;
+    }
+    @keyframes ring-expand {
+        0%   { transform: scale(1);   opacity: 0.8; }
+        100% { transform: scale(2.4); opacity: 0; }
+    }
+    .drop-icon-inner {
+        width: 62px; height: 62px; border-radius: 50%; z-index: 1;
+        background: rgba(102,126,234,0.12);
+        border: 1px solid rgba(102,126,234,0.3);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.8rem;
+        box-shadow: 0 0 30px rgba(102,126,234,0.2);
+        animation: icon-breathe 3s ease-in-out infinite;
+    }
+    @keyframes icon-breathe {
+        0%,100% { box-shadow: 0 0 20px rgba(102,126,234,0.2); }
+        50%      { box-shadow: 0 0 40px rgba(167,139,250,0.5); }
+    }
+    .drop-title {
+        font-size: 1.3rem; font-weight: 700; color: #f7fafc !important;
+        background: linear-gradient(135deg, #f7fafc 0%, #a78bfa 100%);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    .drop-sub {
+        font-size: 0.85rem; color: rgba(255,255,255,0.35) !important; margin-top: 0.4rem;
+    }
+    .drop-arrow {
+        display: block; font-size: 1.2rem; margin-top: 0.6rem;
+        animation: bounce-arrow 1.5s ease-in-out infinite;
+        color: rgba(167,139,250,0.6) !important;
+    }
+    @keyframes bounce-arrow {
+        0%,100% { transform: translateY(0); opacity: 0.5; }
+        50%      { transform: translateY(6px); opacity: 1; }
+    }
+    </style>
+    <div class="drop-zone-hero">
+        <div class="drop-zone-rings">
+            <div class="ring-3"></div>
+            <div class="drop-icon-inner">📁</div>
         </div>
-        <div style='font-size: 0.9rem; color: rgba(255,255,255,0.5) !important; margin-top: 0.5rem;'>
-            Supports CSV and Excel files (up to 200MB)
-        </div>
+        <div class="drop-title">Upload your dataset</div>
+        <div class="drop-sub">Drag & drop or browse · CSV and Excel · Up to 200MB</div>
+        <span class="drop-arrow">↓</span>
     </div>
     """, unsafe_allow_html=True)
 
