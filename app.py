@@ -2114,15 +2114,55 @@ def render_welcome():
 def render_dashboard():
     # ── Enhancement 6: Floating Action Button ──
     st.markdown("""
-    <div class='fab-container' onclick="
-        var tabs = window.parent.document.querySelectorAll('[data-baseweb=tab]');
-        if(tabs.length >= 7) tabs[6].click();
-        window.parent.scrollTo({top:0,behavior:'smooth'});
-    ">
+    <div class='fab-container' id='qm-fab-wrap'>
         <div class='fab-tooltip'>⚡ Ask AI</div>
-        <div class='fab-btn' title='Jump to Chat'>⚡</div>
+        <div class='fab-btn' id='qm-fab-btn' title='Open AI Chat'>⚡</div>
     </div>
     """, unsafe_allow_html=True)
+
+    _st_components.html("""
+    <script>
+    (function() {
+        function doOpenChat() {
+            var doc = window.parent.document;
+
+            // Step 1 — Find and click the Chat & Analysis tab
+            var tabs = doc.querySelectorAll('[data-baseweb="tab"]');
+            var chatTab = null;
+            tabs.forEach(function(t) {
+                if (t.textContent && t.textContent.indexOf('Chat') !== -1) chatTab = t;
+            });
+            if (!chatTab && tabs.length >= 7) chatTab = tabs[6];
+            if (chatTab) chatTab.click();
+
+            // Step 2 — After tab switches, click "ACTIVATE AI NEURAL ENGINE" if visible
+            setTimeout(function() {
+                var allBtns = doc.querySelectorAll('button');
+                for (var i = 0; i < allBtns.length; i++) {
+                    var txt = allBtns[i].textContent || '';
+                    if (txt.indexOf('ACTIVATE AI') !== -1 || txt.indexOf('ACTIVATE') !== -1) {
+                        allBtns[i].click();
+                        break;
+                    }
+                }
+                // scroll to top so chat is visible
+                window.parent.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 400);
+        }
+
+        // Wire up once DOM is ready
+        function attachFAB() {
+            var btn = window.parent.document.getElementById('qm-fab-btn');
+            if (btn) {
+                btn.addEventListener('click', doOpenChat);
+            } else {
+                setTimeout(attachFAB, 300);
+            }
+        }
+        setTimeout(attachFAB, 500);
+    })();
+    </script>
+    """, height=0)
 
     # ── Enhancement 7: Step Breadcrumb ──
     cleaning_done = st.session_state.get('cleaning_applied', False)
