@@ -1115,8 +1115,66 @@ def render_header():
         </div>
         <div class='hero-title'>QueryMind</div>
         <p class='hero-subtitle'>Talk to Your Data - Powered by Artificial Intelligence</p>
-        <p class='hero-tagline'>"Transforming raw data into actionable business intelligence"</p>
+        <p class='hero-tagline' style='min-height:1.4em;'>
+            "<span id='typewriter-text'></span><span id='typewriter-cursor' style='display:inline-block;width:2px;height:0.85em;background:rgba(255,255,255,0.4);margin-left:2px;vertical-align:middle;animation:tw-blink 0.75s step-end infinite;'></span>"
+        </p>
     </div>
+    <style>
+    @keyframes tw-blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    </style>
+    <script>
+    (function() {
+        var quotes = [
+            "Transforming raw data into actionable business intelligence",
+            "Your data speaks — QueryMind listens and translates",
+            "From spreadsheets to strategy, powered by AI",
+            "Ask anything. Discover everything. Decide smarter.",
+            "Where numbers end, intelligence begins"
+        ];
+        var el = null;
+        var qIdx = 0, charIdx = 0, deleting = false;
+        var TYPING_SPEED = 45, DELETING_SPEED = 22, PAUSE_AFTER = 2200, PAUSE_BEFORE = 350;
+
+        function getEl() {
+            if (!el) el = document.getElementById('typewriter-text');
+            return el;
+        }
+
+        function type() {
+            var target = getEl();
+            if (!target) { setTimeout(type, 200); return; }
+            var current = quotes[qIdx];
+
+            if (!deleting) {
+                target.textContent = current.slice(0, charIdx + 1);
+                charIdx++;
+                if (charIdx === current.length) {
+                    deleting = true;
+                    setTimeout(type, PAUSE_AFTER);
+                    return;
+                }
+                setTimeout(type, TYPING_SPEED);
+            } else {
+                target.textContent = current.slice(0, charIdx - 1);
+                charIdx--;
+                if (charIdx === 0) {
+                    deleting = false;
+                    qIdx = (qIdx + 1) % quotes.length;
+                    setTimeout(type, PAUSE_BEFORE);
+                    return;
+                }
+                setTimeout(type, DELETING_SPEED);
+            }
+        }
+
+        // Wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() { setTimeout(type, 400); });
+        } else {
+            setTimeout(type, 400);
+        }
+    })();
+    </script>
     """, unsafe_allow_html=True)
 
 
