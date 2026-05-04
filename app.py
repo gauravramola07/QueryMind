@@ -8,6 +8,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import streamlit as st
+import streamlit.components.v1 as _st_components
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -1119,63 +1120,50 @@ def render_header():
             "<span id='typewriter-text'></span><span id='typewriter-cursor' style='display:inline-block;width:2px;height:0.85em;background:rgba(255,255,255,0.4);margin-left:2px;vertical-align:middle;animation:tw-blink 0.75s step-end infinite;'></span>"
         </p>
     </div>
-    <style>
-    @keyframes tw-blink { 0%,100%{opacity:1} 50%{opacity:0} }
-    </style>
+    <style>@keyframes tw-blink { 0%,100%{opacity:1} 50%{opacity:0} }</style>
+    """, unsafe_allow_html=True)
+
+    _st_components.html("""
     <script>
     (function() {
         var quotes = [
             "Transforming raw data into actionable business intelligence",
-            "Your data speaks — QueryMind listens and translates",
+            "Your data speaks \u2014 QueryMind listens and translates",
             "From spreadsheets to strategy, powered by AI",
             "Ask anything. Discover everything. Decide smarter.",
             "Where numbers end, intelligence begins"
         ];
-        var el = null;
         var qIdx = 0, charIdx = 0, deleting = false;
-        var TYPING_SPEED = 45, DELETING_SPEED = 22, PAUSE_AFTER = 2200, PAUSE_BEFORE = 350;
-
+        var TYPING = 45, DELETING = 22, PAUSE_AFTER = 2200, PAUSE_BEFORE = 350;
         function getEl() {
-            if (!el) el = document.getElementById('typewriter-text');
-            return el;
+            try { return window.parent.document.getElementById('typewriter-text'); }
+            catch(e) { return null; }
         }
-
-        function type() {
-            var target = getEl();
-            if (!target) { setTimeout(type, 200); return; }
-            var current = quotes[qIdx];
-
+        function tick() {
+            var el = getEl();
+            if (!el) { setTimeout(tick, 300); return; }
+            var q = quotes[qIdx];
             if (!deleting) {
-                target.textContent = current.slice(0, charIdx + 1);
+                el.textContent = q.slice(0, charIdx + 1);
                 charIdx++;
-                if (charIdx === current.length) {
-                    deleting = true;
-                    setTimeout(type, PAUSE_AFTER);
-                    return;
-                }
-                setTimeout(type, TYPING_SPEED);
+                if (charIdx === q.length) { deleting = true; setTimeout(tick, PAUSE_AFTER); return; }
+                setTimeout(tick, TYPING);
             } else {
-                target.textContent = current.slice(0, charIdx - 1);
+                el.textContent = q.slice(0, charIdx - 1);
                 charIdx--;
                 if (charIdx === 0) {
                     deleting = false;
                     qIdx = (qIdx + 1) % quotes.length;
-                    setTimeout(type, PAUSE_BEFORE);
+                    setTimeout(tick, PAUSE_BEFORE);
                     return;
                 }
-                setTimeout(type, DELETING_SPEED);
+                setTimeout(tick, DELETING);
             }
         }
-
-        // Wait for DOM to be ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() { setTimeout(type, 400); });
-        } else {
-            setTimeout(type, 400);
-        }
+        setTimeout(tick, 500);
     })();
     </script>
-    """, unsafe_allow_html=True)
+    """, height=0)
 
 
 def render_navbar():
