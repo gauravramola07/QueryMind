@@ -1435,26 +1435,49 @@ def load_footer():
 # ─────────────────────────────────────────────
 
 def show_toast(message: str, kind: str = "success"):
-    """Inject a brief toast notification via HTML/JS (auto-dismisses after 3s)."""
+    """
+    Reliable toast notification.
+    Uses st.markdown to inject the element directly into the page,
+    then a JS snippet (in a separate html component) removes it after 3s.
+    A random suffix ensures each call gets a unique DOM id.
+    """
+    import random
+    toast_id = f"qm-toast-{random.randint(100000, 999999)}"
+    # 1. Inject the toast element via markdown (always rendered by Streamlit)
+    st.markdown(f"""
+    <div id="{toast_id}" class="qm-toast {kind}" style="
+        position:fixed; bottom:5.5rem; left:50%; transform:translateX(-50%);
+        z-index:99999; padding:0.7rem 1.6rem; border-radius:50px;
+        font-size:0.85rem; font-weight:600; letter-spacing:0.3px;
+        backdrop-filter:blur(20px); pointer-events:none; white-space:nowrap;
+        {'background:rgba(72,187,120,0.18);border:1px solid rgba(72,187,120,0.5);color:#48bb78;box-shadow:0 8px 32px rgba(72,187,120,0.2);' if kind=='success' else ''}
+        {'background:rgba(102,126,234,0.18);border:1px solid rgba(102,126,234,0.5);color:#a78bfa;box-shadow:0 8px 32px rgba(102,126,234,0.2);' if kind=='info' else ''}
+        {'background:rgba(237,137,54,0.18);border:1px solid rgba(237,137,54,0.5);color:#ed8936;box-shadow:0 8px 32px rgba(237,137,54,0.2);' if kind=='warning' else ''}
+        opacity:0; transition: opacity 0.35s ease, transform 0.35s ease;
+    ">{message}</div>
+    """, unsafe_allow_html=True)
+    # 2. Separate JS component: fade in then fade out and remove after 3.2s
     _st_components.html(f"""
     <script>
     (function() {{
-        var doc = window.parent.document;
-        // Remove any existing toast
-        var old = doc.getElementById('qm-toast-el');
-        if (old) old.remove();
-        // Create new toast
-        var t = doc.createElement('div');
-        t.id = 'qm-toast-el';
-        t.className = 'qm-toast {kind}';
-        t.textContent = '{message}';
-        doc.body.appendChild(t);
-        setTimeout(function() {{
-            t.style.transition = 'opacity 0.4s, transform 0.4s';
-            t.style.opacity = '0';
-            t.style.transform = 'translateX(-50%) translateY(-10px) scale(0.95)';
-            setTimeout(function() {{ if(t.parentNode) t.parentNode.removeChild(t); }}, 420);
-        }}, 2800);
+        var TOAST_ID = "{toast_id}";
+        function fadeInOut() {{
+            var doc = window.parent.document;
+            var el = doc.getElementById(TOAST_ID);
+            if (!el) {{ setTimeout(fadeInOut, 80); return; }}
+            // Fade in
+            el.style.opacity = "1";
+            el.style.transform = "translateX(-50%) translateY(0) scale(1)";
+            // Fade out after 3s
+            setTimeout(function() {{
+                el.style.opacity = "0";
+                el.style.transform = "translateX(-50%) translateY(-10px) scale(0.95)";
+                setTimeout(function() {{
+                    if (el && el.parentNode) el.parentNode.removeChild(el);
+                }}, 380);
+            }}, 3000);
+        }}
+        setTimeout(fadeInOut, 60);
     }})();
     </script>
     """, height=0)
@@ -2296,7 +2319,6 @@ def render_dashboard():
         <div class='fab-tooltip'>⚡ Ask AI</div>
         <div class='fab-btn' id='qm-fab-btn' title='Open AI Chat'>⚡</div>
     </div>
-    <div class='qm-scroll-top' id='qm-scroll-top-btn' title='Scroll to top' onclick="window.parent.scrollTo({top:0,behavior:'smooth'})">↑</div>
     """, unsafe_allow_html=True)
 
     _st_components.html("""
@@ -3001,30 +3023,11 @@ def render_preview_tab():
     df = st.session_state.df
     if df is None: return
 
-    # ── Live Table Search ──
-    search_query = st.text_input(
-        "🔍 Search rows",
-        placeholder="Type to filter rows across all columns…",
-        label_visibility="collapsed",
-        key="preview_search"
-    )
-
-    if search_query.strip():
-        mask = df.astype(str).apply(
-            lambda col: col.str.contains(search_query, case=False, na=False)
-        ).any(axis=1)
-        df_filtered = df[mask]
-        match_count = len(df_filtered)
-        st.markdown(
-            f"<div class='search-result-badge'>🔍 {match_count:,} row{'s' if match_count!=1 else ''} matched <b>\"{search_query}\"</b></div>",
-            unsafe_allow_html=True
-        )
-    else:
-        df_filtered = df
+    df_filtered = df  # no search filter
 
     c1, c2 = st.columns([3, 1])
     with c1:
-        n = st.slider("Rows", 5, min(100, max(5, len(df_filtered))), min(10, max(5, len(df_filtered))), 5)
+        n = st.slider("Rows", 5, min(100, len(df_filtered)), min(10, len(df_filtered)), 5)
     with c2:
         st.markdown("<br>", unsafe_allow_html=True)
         show_t = st.checkbox("Show types")
@@ -3035,10 +3038,7 @@ def render_preview_tab():
     st.markdown(f'<div style="overflow-x: auto; padding-bottom: 10px;">{html_table}</div>', unsafe_allow_html=True)
 
     total_rows = len(df_filtered)
-    caption_text = f"Showing {min(n, total_rows)} of {total_rows:,}"
-    if search_query.strip():
-        caption_text += f" filtered rows (total dataset: {len(df):,})"
-    st.caption(caption_text)
+    st.caption(f"Showing {min(n, total_rows)} of {total_rows:,} rows")
 
     if show_t:
         dt = pd.DataFrame({
