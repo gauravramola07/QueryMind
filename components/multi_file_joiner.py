@@ -86,8 +86,10 @@ def _extract_json(text: str) -> dict | list | None:
         if m:
             try:
                 return json.loads(m.group())
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                print(f"[multi_file_joiner] JSON parse failed: {e}")
                 pass
+    print(f"[multi_file_joiner] No JSON found in LLM reply: {text[:200]}")
     return None
 
 

@@ -23,64 +23,75 @@ _current_df = None
 _db_lock = threading.Lock() 
 
 # ─────────────────────────────────────────────
+# INTERNAL HELPER: Load DataFrame without lock
+# ─────────────────────────────────────────────
+
+def _load_db_unlocked(df):
+    """
+    Internal helper: loads df into SQLite WITHOUT acquiring _db_lock.
+    Call ONLY from within a block that already holds _db_lock.
+    """
+    global _conn, _current_df
+    try:
+        print(f"🗄️ Loading DataFrame into SQLite...")
+        print(f"📊 Shape: {df.shape[0]} rows × {df.shape[1]} columns")
+
+        # ── Close existing connection ──────────────
+        if _conn is not None:
+            try:
+                _conn.close()
+            except Exception:
+                pass  # Ignore errors when closing old connection
+
+        # ── Create new persistent connection ──────
+        _conn = sqlite3.connect(':memory:', check_same_thread=False)
+
+        # ── Load DataFrame ─────────────────────────
+        df.to_sql(
+            name=config.DB_TABLE_NAME,
+            con=_conn,
+            index=False,
+            if_exists='replace'
+        )
+
+        # ── Store reference ────────────────────────
+        _current_df = df.copy()
+
+        # ── Verify ────────────────────────────────
+        cursor = _conn.cursor()
+        cursor.execute(f"SELECT COUNT(*) FROM {config.DB_TABLE_NAME}")
+        row_count = cursor.fetchone()[0]
+
+        print(f"✅ Data loaded into SQLite!")
+        print(f"📊 Rows in DB: {row_count:,}")
+
+        return {
+            'success': True,
+            'message': f"✅ {row_count:,} rows loaded successfully!",
+            'table_name': config.DB_TABLE_NAME,
+            'row_count': row_count
+        }
+
+    except Exception as e:
+        print(f"❌ Error loading data: {e}")
+        return {
+            'success': False,
+            'message': f"❌ Error: {str(e)}",
+            'table_name': None,
+            'row_count': 0
+        }
+
+
+# ─────────────────────────────────────────────
 # MAIN FUNCTION 1: Load DataFrame into SQLite
 # ─────────────────────────────────────────────
 
 def load_dataframe_to_db(df):
     """
-    Load pandas DataFrame into SQLite in-memory database
-    Uses a persistent connection stored globally
+    Public API — acquires lock then delegates.
     """
-    global _conn, _current_df
     with _db_lock:
-        try:
-            print(f"🗄️ Loading DataFrame into SQLite...")
-            print(f"📊 Shape: {df.shape[0]} rows × {df.shape[1]} columns")
-
-            # ── Close existing connection ──────────────
-            if _conn is not None:
-                try:
-                    _conn.close()
-                except Exception:
-                    pass  # Ignore errors when closing old connection
-
-            # ── Create new persistent connection ──────
-            _conn = sqlite3.connect(':memory:', check_same_thread=False)
-
-            # ── Load DataFrame ─────────────────────────
-            df.to_sql(
-                name=config.DB_TABLE_NAME,
-                con=_conn,
-                index=False,
-                if_exists='replace'
-            )
-
-            # ── Store reference ────────────────────────
-            _current_df = df.copy()
-
-            # ── Verify ────────────────────────────────
-            cursor = _conn.cursor()
-            cursor.execute(f"SELECT COUNT(*) FROM {config.DB_TABLE_NAME}")
-            row_count = cursor.fetchone()[0]
-
-            print(f"✅ Data loaded into SQLite!")
-            print(f"📊 Rows in DB: {row_count:,}")
-
-            return {
-                'success': True,
-                'message': f"✅ {row_count:,} rows loaded successfully!",
-                'table_name': config.DB_TABLE_NAME,
-                'row_count': row_count
-            }
-
-        except Exception as e:
-            print(f"❌ Error loading data: {e}")
-            return {
-                'success': False,
-                'message': f"❌ Error: {str(e)}",
-                'table_name': None,
-                'row_count': 0
-            }
+        return _load_db_unlocked(df)
 
 
 # ─────────────────────────────────────────────
@@ -97,7 +108,7 @@ def execute_sql_query(sql_query):
         if _conn is None:
             if _current_df is not None:
                 print("🔄 Reconnecting to database...")
-                result = load_dataframe_to_db(_current_df)
+                result = _load_db_unlocked(_current_df)
                 if not result['success']:
                     return {
                         'success': False,

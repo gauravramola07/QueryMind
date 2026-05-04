@@ -3,6 +3,9 @@
 # ALL PROMPT TEMPLATES
 # Centralized prompt management
 # ============================================
+# NOTE: These templates are defined for reference but are not currently used.
+# The actual prompts are built inline inside llm_engine.py.
+# ============================================
 
 import sys
 import os

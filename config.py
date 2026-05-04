@@ -26,6 +26,7 @@ LLM_PROVIDER = "groq"          # "groq" or "gemini"
 
 # ── LLM SETTINGS ──────────────────────────────
 LLM_MODEL = "llama-3.3-70b-versatile"   # Groq model (free)
+LLM_FALLBACK_MODEL = "llama-3.1-8b-instant"   # Fallback model if primary fails
 MAX_TOKENS = 2048
 TEMPERATURE = 0.1                  # Low = more precise/deterministic
 

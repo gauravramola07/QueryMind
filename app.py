@@ -82,7 +82,6 @@ def load_css():
     /* Hide Sidebar Completely */
     [data-testid="stSidebar"] { display: none !important; }
     [data-testid="collapsedControl"] { display: none !important; }
-    .css-1d391kg { display: none !important; }
 
     /* Main Container Padding */
     /* Change from 2rem to 0rem for the first value */
@@ -2872,4 +2871,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-#final upto AI refinemnet

@@ -27,7 +27,6 @@ _groq_client = None
 def setup_llm():
     """
     Initialize Groq AI Client
-    Named setup_gemini() for compatibility with existing code
     
     Returns:
         dict: {
@@ -70,10 +69,6 @@ def setup_llm():
 
 
 # ─────────────────────────────────────────────
-# CORE FUNCTION: Call Groq API
-# ─────────────────────────────────────────────
-
-# ─────────────────────────────────────────────
 # CORE FUNCTION: Call Groq API with Auto-Failover
 # ─────────────────────────────────────────────
 
@@ -90,7 +85,7 @@ def call_groq(prompt, system_prompt=None):
     
     # Define our models
     primary_model = config.LLM_MODEL # Usually 'llama-3.3-70b-versatile'
-    fallback_model = "llama-3.1-8b-instant"
+    fallback_model = config.LLM_FALLBACK_MODEL   # Fallback model if primary fails
     
     messages = []
     
