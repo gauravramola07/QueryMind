@@ -1436,48 +1436,79 @@ def load_footer():
 
 def show_toast(message: str, kind: str = "success"):
     """
-    Reliable toast notification.
-    Uses st.markdown to inject the element directly into the page,
-    then a JS snippet (in a separate html component) removes it after 3s.
-    A random suffix ensures each call gets a unique DOM id.
+    Reliable toast: creates the element directly in window.parent.document.body
+    from inside a components.html iframe — no cross-frame getElementById race.
+    Each call uses a unique ID so concurrent toasts never collide.
     """
-    import random
-    toast_id = f"qm-toast-{random.randint(100000, 999999)}"
-    # 1. Inject the toast element via markdown (always rendered by Streamlit)
-    st.markdown(f"""
-    <div id="{toast_id}" class="qm-toast {kind}" style="
-        position:fixed; bottom:5.5rem; left:50%; transform:translateX(-50%);
-        z-index:99999; padding:0.7rem 1.6rem; border-radius:50px;
-        font-size:0.85rem; font-weight:600; letter-spacing:0.3px;
-        backdrop-filter:blur(20px); pointer-events:none; white-space:nowrap;
-        {'background:rgba(72,187,120,0.18);border:1px solid rgba(72,187,120,0.5);color:#48bb78;box-shadow:0 8px 32px rgba(72,187,120,0.2);' if kind=='success' else ''}
-        {'background:rgba(102,126,234,0.18);border:1px solid rgba(102,126,234,0.5);color:#a78bfa;box-shadow:0 8px 32px rgba(102,126,234,0.2);' if kind=='info' else ''}
-        {'background:rgba(237,137,54,0.18);border:1px solid rgba(237,137,54,0.5);color:#ed8936;box-shadow:0 8px 32px rgba(237,137,54,0.2);' if kind=='warning' else ''}
-        opacity:0; transition: opacity 0.35s ease, transform 0.35s ease;
-    ">{message}</div>
-    """, unsafe_allow_html=True)
-    # 2. Separate JS component: fade in then fade out and remove after 3.2s
+    import random, time
+    toast_id = f"qmt_{int(time.time()*1000)}_{random.randint(1000,9999)}"
+
+    # Colour tokens per kind
+    colors = {
+        "success": ("rgba(72,187,120,0.18)", "rgba(72,187,120,0.55)", "#48bb78", "rgba(72,187,120,0.2)"),
+        "info":    ("rgba(102,126,234,0.18)", "rgba(102,126,234,0.55)", "#a78bfa", "rgba(102,126,234,0.2)"),
+        "warning": ("rgba(237,137,54,0.18)",  "rgba(237,137,54,0.55)",  "#ed8936", "rgba(237,137,54,0.2)"),
+    }
+    bg, border, color, shadow = colors.get(kind, colors["info"])
+
     _st_components.html(f"""
     <script>
     (function() {{
         var TOAST_ID = "{toast_id}";
-        function fadeInOut() {{
-            var doc = window.parent.document;
-            var el = doc.getElementById(TOAST_ID);
-            if (!el) {{ setTimeout(fadeInOut, 80); return; }}
-            // Fade in
-            el.style.opacity = "1";
-            el.style.transform = "translateX(-50%) translateY(0) scale(1)";
-            // Fade out after 3s
+        var doc = window.parent.document;
+
+        function createToast() {{
+            // Remove any toast older than 4s to avoid clutter
+            doc.querySelectorAll('[data-qm-toast]').forEach(function(el) {{
+                if (Date.now() - parseInt(el.dataset.qmToast || 0) > 4000) el.remove();
+            }});
+
+            var t = doc.createElement('div');
+            t.id = TOAST_ID;
+            t.dataset.qmToast = Date.now();
+            t.textContent = "{message}";
+            t.style.cssText = [
+                'position:fixed',
+                'bottom:5.5rem',
+                'left:50%',
+                'transform:translateX(-50%) translateY(16px) scale(0.92)',
+                'z-index:2147483647',
+                'padding:0.7rem 1.6rem',
+                'border-radius:50px',
+                'font-family:Inter,sans-serif',
+                'font-size:0.85rem',
+                'font-weight:600',
+                'letter-spacing:0.3px',
+                'backdrop-filter:blur(20px)',
+                'pointer-events:none',
+                'white-space:nowrap',
+                'background:{bg}',
+                'border:1px solid {border}',
+                'color:{color}',
+                'box-shadow:0 8px 32px {shadow}',
+                'opacity:0',
+                'transition:opacity 0.35s ease, transform 0.35s ease',
+            ].join(';');
+            doc.body.appendChild(t);
+
+            // Fade in on next frame
+            requestAnimationFrame(function() {{
+                requestAnimationFrame(function() {{
+                    t.style.opacity = '1';
+                    t.style.transform = 'translateX(-50%) translateY(0) scale(1)';
+                }});
+            }});
+
+            // Fade out after 3s, remove after 3.4s
             setTimeout(function() {{
-                el.style.opacity = "0";
-                el.style.transform = "translateX(-50%) translateY(-10px) scale(0.95)";
-                setTimeout(function() {{
-                    if (el && el.parentNode) el.parentNode.removeChild(el);
-                }}, 380);
+                t.style.opacity = '0';
+                t.style.transform = 'translateX(-50%) translateY(-10px) scale(0.95)';
+                setTimeout(function() {{ if (t.parentNode) t.parentNode.removeChild(t); }}, 400);
             }}, 3000);
         }}
-        setTimeout(fadeInOut, 60);
+
+        // Small delay to let Streamlit finish its render cycle
+        setTimeout(createToast, 100);
     }})();
     </script>
     """, height=0)
@@ -2319,7 +2350,54 @@ def render_dashboard():
         <div class='fab-tooltip'>⚡ Ask AI</div>
         <div class='fab-btn' id='qm-fab-btn' title='Open AI Chat'>⚡</div>
     </div>
+    <div class='qm-scroll-top' id='qm-scroll-top-btn' title='Back to top'>↑</div>
     """, unsafe_allow_html=True)
+
+    # Wire up scroll-to-top — tries every known Streamlit scrollable container
+    _st_components.html("""
+    <script>
+    (function() {
+        function scrollToTop() {
+            var doc = window.parent.document;
+            // Streamlit's main scrollable containers (varies by version)
+            var selectors = [
+                '[data-testid="stAppViewContainer"]',
+                '.main',
+                'section.main',
+                '[data-testid="stMain"]',
+                '.block-container',
+            ];
+            var scrolled = false;
+            for (var s = 0; s < selectors.length; s++) {
+                var el = doc.querySelector(selectors[s]);
+                if (el && el.scrollHeight > el.clientHeight) {
+                    el.scrollTo({ top: 0, behavior: 'smooth' });
+                    scrolled = true;
+                    break;
+                }
+            }
+            // Fallback: scroll the parent window itself
+            if (!scrolled) {
+                window.parent.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function attachScrollBtn() {
+            var doc = window.parent.document;
+            var btn = doc.getElementById('qm-scroll-top-btn');
+            if (btn) {
+                // Remove old listeners to avoid duplicates
+                btn.replaceWith(btn.cloneNode(true));
+                btn = doc.getElementById('qm-scroll-top-btn');
+                btn.addEventListener('click', scrollToTop);
+            } else {
+                setTimeout(attachScrollBtn, 300);
+            }
+        }
+        setTimeout(attachScrollBtn, 600);
+    })();
+    </script>
+    """, height=0)
 
     _st_components.html("""
     <script>
