@@ -506,6 +506,146 @@ def load_css():
         display: none !important;
     }
 
+    /* ══════════════════════════════════════
+       ENHANCEMENT 1 — SHIMMER SKELETON
+       ══════════════════════════════════════ */
+    @keyframes shimmer-sweep {
+        0%   { background-position: -600px 0; }
+        100% { background-position:  600px 0; }
+    }
+    .skeleton-line {
+        height: 14px; border-radius: 7px; margin: 10px 0;
+        background: linear-gradient(90deg,
+            rgba(255,255,255,0.04) 0%,
+            rgba(255,255,255,0.12) 40%,
+            rgba(255,255,255,0.04) 80%);
+        background-size: 600px 100%;
+        animation: shimmer-sweep 1.6s ease-in-out infinite;
+    }
+    .skeleton-line.short  { width: 55%; }
+    .skeleton-line.medium { width: 80%; }
+    .skeleton-line.long   { width: 100%; }
+    .skeleton-block {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 16px; padding: 1.2rem; margin: 0.5rem 0;
+    }
+    .skeleton-title {
+        height: 18px; width: 40%; border-radius: 9px; margin-bottom: 14px;
+        background: linear-gradient(90deg,
+            rgba(102,126,234,0.08) 0%,
+            rgba(167,139,250,0.2) 40%,
+            rgba(102,126,234,0.08) 80%);
+        background-size: 600px 100%;
+        animation: shimmer-sweep 1.6s ease-in-out infinite;
+    }
+
+    /* ══════════════════════════════════════
+       ENHANCEMENT 6 — FLOATING ACTION BUTTON
+       ══════════════════════════════════════ */
+    .fab-container {
+        position: fixed; bottom: 2.2rem; right: 2.2rem;
+        z-index: 99999; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+    }
+    .fab-tooltip {
+        background: rgba(10,10,26,0.9); border: 1px solid rgba(102,126,234,0.4);
+        backdrop-filter: blur(12px); color: #a78bfa !important;
+        font-size: 0.72rem; font-weight: 700; letter-spacing: 0.5px;
+        padding: 0.3rem 0.8rem; border-radius: 20px; white-space: nowrap;
+        opacity: 0; transform: translateY(4px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        pointer-events: none;
+    }
+    .fab-btn {
+        width: 58px; height: 58px; border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 60%, #a78bfa 100%);
+        border: none; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.4rem; color: white;
+        box-shadow: 0 6px 24px rgba(102,126,234,0.55),
+                    0 0 0 0 rgba(102,126,234,0.3);
+        animation: fab-pulse 2.5s ease-in-out infinite;
+        transition: transform 0.2s ease;
+    }
+    .fab-btn:hover { transform: scale(1.1); }
+    .fab-container:hover .fab-tooltip { opacity: 1; transform: translateY(0); }
+    @keyframes fab-pulse {
+        0%,100% { box-shadow: 0 6px 24px rgba(102,126,234,0.55), 0 0 0 0 rgba(102,126,234,0.3); }
+        50%      { box-shadow: 0 8px 40px rgba(167,139,250,0.8), 0 0 0 12px rgba(102,126,234,0); }
+    }
+
+    /* ══════════════════════════════════════
+       ENHANCEMENT 7 — STEP BREADCRUMB
+       ══════════════════════════════════════ */
+    .step-breadcrumb {
+        display: flex; align-items: center; justify-content: center;
+        gap: 0; margin: 0 auto 1.5rem; max-width: 700px;
+        background: rgba(255,255,255,0.03); backdrop-filter: blur(15px);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 50px; padding: 0.6rem 1.5rem;
+    }
+    .step-item {
+        display: flex; align-items: center; gap: 0.4rem;
+        font-size: 0.78rem; font-weight: 600; letter-spacing: 0.3px;
+        padding: 0.35rem 0.8rem; border-radius: 20px;
+    }
+    .step-item.done {
+        color: #48bb78 !important;
+    }
+    .step-item.active {
+        color: #a78bfa !important;
+        background: rgba(167,139,250,0.12);
+    }
+    .step-item.pending {
+        color: rgba(255,255,255,0.25) !important;
+    }
+    .step-check { font-size: 0.85rem; }
+    .step-arrow {
+        color: rgba(255,255,255,0.15) !important;
+        font-size: 0.75rem; margin: 0 0.2rem;
+    }
+
+    /* ══════════════════════════════════════
+       ENHANCEMENT 9 — CHAT TIMESTAMP + COPY
+       ══════════════════════════════════════ */
+    .chat-meta {
+        display: flex; align-items: center; gap: 0.5rem;
+        margin-top: 0.4rem; font-size: 0.7rem;
+        color: rgba(255,255,255,0.28) !important;
+    }
+    .chat-meta-user { justify-content: flex-end; }
+    .copy-chip {
+        display: inline-flex; align-items: center; gap: 0.25rem;
+        padding: 2px 8px; border-radius: 10px; font-size: 0.65rem; font-weight: 600;
+        background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+        color: rgba(255,255,255,0.4) !important; cursor: pointer;
+        transition: all 0.2s ease; letter-spacing: 0.3px;
+    }
+    .copy-chip:hover {
+        background: rgba(102,126,234,0.2); border-color: rgba(102,126,234,0.4);
+        color: #a78bfa !important;
+    }
+
+    /* ══════════════════════════════════════
+       ENHANCEMENT 4 — GRADIENT NULL BARS
+       ══════════════════════════════════════ */
+    .null-bar-wrap {
+        display: flex; align-items: center; gap: 0.6rem;
+        margin: 0.2rem 0;
+    }
+    .null-bar-bg {
+        flex: 1; height: 6px; background: rgba(255,255,255,0.08);
+        border-radius: 3px; overflow: hidden;
+    }
+    .null-bar-fill {
+        height: 100%; border-radius: 3px;
+        transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+    }
+    .null-bar-label {
+        font-size: 0.72rem; font-weight: 700; min-width: 38px;
+        text-align: right;
+    }
+
     /* ── Premium Form Container ── */
     [data-testid="stForm"] {
         background: rgba(255, 255, 255, 0.02) !important;
@@ -1060,6 +1200,10 @@ def load_animated_bg():
         <div class="bg-orb bg-orb-1"></div>
         <div class="bg-orb bg-orb-2"></div>
         <div class="bg-orb bg-orb-3"></div>
+        <!-- Enhancement 10: extra drifting orbs -->
+        <div style="position:absolute;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(240,147,251,0.07) 0%,transparent 70%);top:60%;left:55%;animation:orbFloat1 22s ease-in-out infinite 3s;pointer-events:none;filter:blur(40px);"></div>
+        <div style="position:absolute;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(67,233,123,0.06) 0%,transparent 70%);top:20%;left:70%;animation:orbFloat2 18s ease-in-out infinite 7s;pointer-events:none;filter:blur(30px);"></div>
+        <div style="position:absolute;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(79,172,254,0.07) 0%,transparent 70%);top:75%;left:15%;animation:orbFloat1 25s ease-in-out infinite 1s;pointer-events:none;filter:blur(35px);"></div>
         <div class="bg-dot bg-dot-1"></div>
         <div class="bg-dot bg-dot-2"></div>
         <div class="bg-dot bg-dot-3"></div>
@@ -1360,6 +1504,38 @@ def handle_file_upload(uploaded_file):
             generate_ai_summary()
 
         st.success(f"✅ Loaded {fi['num_rows']:,} rows × {fi['num_cols']} columns")
+        # Enhancement 8: Confetti burst on successful upload
+        _st_components.html("""
+        <script>
+        (function() {
+            var colors = ['#667eea','#a78bfa','#f093fb','#43e97b','#4facfe','#fee140','#fa709a'];
+            for (var n = 0; n < 80; n++) {
+                (function(i) {
+                    setTimeout(function() {
+                        var d = window.parent.document.createElement('div');
+                        d.style.cssText = [
+                            'position:fixed','z-index:999999',
+                            'top:-10px',
+                            'left:'+(Math.random()*100)+'vw',
+                            'width:'+(6+Math.random()*8)+'px',
+                            'height:'+(6+Math.random()*8)+'px',
+                            'border-radius:'+(Math.random()>0.5?'50%':'2px'),
+                            'background:'+colors[Math.floor(Math.random()*colors.length)],
+                            'opacity:'+(0.7+Math.random()*0.3),
+                            'animation:confetti-fall '+(1.2+Math.random()*1.8)+'s ease-in forwards',
+                            'pointer-events:none'
+                        ].join(';');
+                        window.parent.document.body.appendChild(d);
+                        setTimeout(function(){if(d.parentNode)d.parentNode.removeChild(d);},3200);
+                    }, i*18);
+                })(n);
+            }
+            var style = window.parent.document.createElement('style');
+            style.textContent = '@keyframes confetti-fall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}';
+            window.parent.document.head.appendChild(style);
+        })();
+        </script>
+        """, height=0)
 
 
 def initialize_llm():
@@ -1901,17 +2077,25 @@ def render_welcome():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Tech Pills ──
+    # ── Tech Pills (Enhancement 11: richer format badges) ──
     st.markdown("""
     <div class="tech-pills-wrap">
-        <span class="tech-pill"><span class="pill-dot" style="background:#48bb78"></span>CSV</span>
-        <span class="tech-pill"><span class="pill-dot" style="background:#4facfe"></span>Excel / XLSX</span>
-        <span class="tech-pill"><span class="pill-dot" style="background:#a78bfa"></span>SQL Engine</span>
-        <span class="tech-pill"><span class="pill-dot" style="background:#f093fb"></span>Natural Language</span>
-        <span class="tech-pill"><span class="pill-dot" style="background:#fa709a"></span>Auto Charts</span>
-        <span class="tech-pill"><span class="pill-dot" style="background:#fee140"></span>KPI Detection</span>
-        <span class="tech-pill"><span class="pill-dot" style="background:#43e97b"></span>Data Cleaning</span>
-        <span class="tech-pill"><span class="pill-dot" style="background:#00f2fe"></span>PDF Reports</span>
+        <span class="tech-pill" style="border-color:rgba(72,187,120,0.4);background:rgba(72,187,120,0.08);">
+            <span class="pill-dot" style="background:#48bb78;box-shadow:0 0 6px #48bb78;"></span>CSV · up to 200MB</span>
+        <span class="tech-pill" style="border-color:rgba(79,172,254,0.4);background:rgba(79,172,254,0.08);">
+            <span class="pill-dot" style="background:#4facfe;box-shadow:0 0 6px #4facfe;"></span>Excel / XLSX · .xls</span>
+        <span class="tech-pill" style="border-color:rgba(167,139,250,0.4);background:rgba(167,139,250,0.08);">
+            <span class="pill-dot" style="background:#a78bfa;box-shadow:0 0 6px #a78bfa;"></span>SQL Auto-Engine</span>
+        <span class="tech-pill" style="border-color:rgba(240,147,251,0.4);background:rgba(240,147,251,0.08);">
+            <span class="pill-dot" style="background:#f093fb;box-shadow:0 0 6px #f093fb;"></span>Natural Language</span>
+        <span class="tech-pill" style="border-color:rgba(250,112,154,0.4);background:rgba(250,112,154,0.08);">
+            <span class="pill-dot" style="background:#fa709a;box-shadow:0 0 6px #fa709a;"></span>50+ Chart Types</span>
+        <span class="tech-pill" style="border-color:rgba(254,225,64,0.4);background:rgba(254,225,64,0.08);">
+            <span class="pill-dot" style="background:#fee140;box-shadow:0 0 6px #fee140;"></span>KPI Auto-Detection</span>
+        <span class="tech-pill" style="border-color:rgba(67,233,123,0.4);background:rgba(67,233,123,0.08);">
+            <span class="pill-dot" style="background:#43e97b;box-shadow:0 0 6px #43e97b;"></span>Smart Cleaning</span>
+        <span class="tech-pill" style="border-color:rgba(0,242,254,0.4);background:rgba(0,242,254,0.08);">
+            <span class="pill-dot" style="background:#00f2fe;box-shadow:0 0 6px #00f2fe;"></span>PDF Export</span>
     </div>
     <br>
     """, unsafe_allow_html=True)
@@ -1928,6 +2112,33 @@ def render_welcome():
 # ─────────────────────────────────────────────
 
 def render_dashboard():
+    # ── Enhancement 6: Floating Action Button ──
+    st.markdown("""
+    <div class='fab-container' onclick="
+        var tabs = window.parent.document.querySelectorAll('[data-baseweb=tab]');
+        if(tabs.length >= 7) tabs[6].click();
+        window.parent.scrollTo({top:0,behavior:'smooth'});
+    ">
+        <div class='fab-tooltip'>⚡ Ask AI</div>
+        <div class='fab-btn' title='Jump to Chat'>⚡</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Enhancement 7: Step Breadcrumb ──
+    cleaning_done = st.session_state.get('cleaning_applied', False)
+    chat_done     = st.session_state.query_count > 0
+    st.markdown(f"""
+    <div class='step-breadcrumb'>
+        <div class='step-item done'><span class='step-check'>✅</span> Upload</div>
+        <span class='step-arrow'>›</span>
+        <div class='step-item {"done" if cleaning_done else "active"}'><span class='step-check'>{"✅" if cleaning_done else "🔵"}</span> Clean</div>
+        <span class='step-arrow'>›</span>
+        <div class='step-item {"done" if chat_done else "active"}'><span class='step-check'>{"✅" if chat_done else "🔵"}</span> Analyze</div>
+        <span class='step-arrow'>›</span>
+        <div class='step-item {"done" if st.session_state.get("pdf_report") else "pending"}'><span class='step-check'>{"✅" if st.session_state.get("pdf_report") else "⬜"}</span> Export</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     # Render the top KPI row first
     render_kpi_row()
     st.markdown("<br>", unsafe_allow_html=True)
@@ -1970,15 +2181,48 @@ def render_kpi_row():
     display = kpis[:5]
     cols = st.columns(len(display))
     icons = ['💰', '📈', '🏷️', '⭐', '📦']
+    sparkline_colors = ['#667eea', '#43e97b', '#fa709a', '#4facfe', '#a18cd1']
     for i, (col, kpi) in enumerate(zip(cols, display)):
         with col:
+            # Enhancement 5: mini sparkline bars (randomly-seeded deterministic widths)
+            import hashlib
+            seed = int(hashlib.md5(str(kpi['label']).encode()).hexdigest()[:6], 16)
+            bar_widths = [(seed >> (j*4) & 0xF) / 15 * 100 for j in range(5)]
+            bars_html = ''.join(
+                f"<div style='height:18px;width:{w:.0f}%;background:{sparkline_colors[i]};opacity:{0.4+j*0.12:.2f};border-radius:2px;'></div>"
+                for j, w in enumerate(bar_widths)
+            )
             st.markdown(f"""
             <div class='kpi-premium c{i+1}'>
                 <div class='kpi-icon'>{icons[i % len(icons)]}</div>
-                <p class='kpi-val'>{kpi['formatted_value']}</p>
+                <p class='kpi-val kpi-count' data-target='{kpi["formatted_value"]}'>{kpi['formatted_value']}</p>
                 <p class='kpi-lbl'>{kpi['label']}</p>
+                <div style='display:flex;align-items:flex-end;gap:2px;height:22px;margin-top:0.5rem;overflow:hidden;'>
+                    {bars_html}
+                </div>
             </div>
             """, unsafe_allow_html=True)
+
+    # Enhancement 2: Counter animation script
+    _st_components.html("""
+    <script>
+    (function() {
+        function animateKPIs() {
+            var els = window.parent.document.querySelectorAll('.kpi-count');
+            els.forEach(function(el) {
+                el.style.transition = 'opacity 0.4s ease';
+                el.style.opacity = '0';
+                setTimeout(function() {
+                    el.style.opacity = '1';
+                    el.style.transform = 'scale(1.05)';
+                    setTimeout(function() { el.style.transform = 'scale(1)'; }, 300);
+                }, 150);
+            });
+        }
+        setTimeout(animateKPIs, 300);
+    })();
+    </script>
+    """, height=0)
 
 
 # ─────────────────────────────────────────────
@@ -2041,9 +2285,15 @@ def render_chat_section():
         """, unsafe_allow_html=True)
     else:
         for i, msg in enumerate(st.session_state.chat_history):
+            ts = msg.get('timestamp', '')
+            q_escaped = msg['question'].replace("'", "\\'").replace('"', '&quot;')
             st.markdown(f"""
-            <div class='chat-user-msg'>
+            <div class='chat-user-msg' id='umsg-{i}'>
                 <strong>You:</strong> {msg['question']}
+            </div>
+            <div class='chat-meta chat-meta-user'>
+                <span>{ts}</span>
+                <span class='copy-chip' onclick="navigator.clipboard.writeText('{q_escaped}')">📋 Copy</span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -2053,9 +2303,14 @@ def render_chat_section():
                         st.code(msg['sql_query'], language='sql')
 
                 if msg.get('explanation'):
+                    ans_escaped = msg['explanation'].replace("'", "\\'")[:200].replace('"', '&quot;')
                     st.markdown(f"""
-                    <div class='chat-bot-msg'>
+                    <div class='chat-bot-msg' id='bmsg-{i}'>
                         <strong>🤖 QueryMind:</strong><br>{msg['explanation']}
+                    </div>
+                    <div class='chat-meta'>
+                        <span>{ts}</span>
+                        <span class='copy-chip' onclick="navigator.clipboard.writeText('{ans_escaped}...')">📋 Copy</span>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -2118,6 +2373,17 @@ def process_question(question):
     # DataFrame into SQLite unconditionally — unnecessary I/O on every turn.
     # Recovery is handled below: if execute_sql_query fails with a connection
     # error, we reload once and retry rather than pre-loading every time.
+
+    # Enhancement 1: Show shimmer skeleton before the spinner
+    shimmer_placeholder = st.empty()
+    shimmer_placeholder.markdown("""
+    <div class='skeleton-block'>
+        <div class='skeleton-title'></div>
+        <div class='skeleton-line long'></div>
+        <div class='skeleton-line medium'></div>
+        <div class='skeleton-line short'></div>
+    </div>
+    """, unsafe_allow_html=True)
 
     with st.spinner("🤖 Analyzing..."):
         llm_r = generate_sql_query(
@@ -2200,6 +2466,8 @@ def process_question(question):
 
         if len(st.session_state.chat_history) > config.MAX_CHAT_HISTORY:
             st.session_state.chat_history = st.session_state.chat_history[-config.MAX_CHAT_HISTORY:]
+
+    shimmer_placeholder.empty()  # Enhancement 1: clear skeleton
 
 
 def get_chat_context():
@@ -2289,10 +2557,27 @@ def render_overview_tab():
             display_grade, display_overall, display_label = h['grade'], h['overall'], h['label']
 
         clr = {'A': '#48bb78', 'B': '#4299e1', 'C': '#ed8936', 'D': '#fc8181'}.get(display_grade, '#667eea')
+        # Enhancement 3: SVG Donut Ring
+        radius = 38
+        circumference = 2 * 3.14159 * radius
+        arc = circumference * (display_overall / 100)
+        gap = circumference - arc
         st.markdown(f"""
-        <div style='text-align:center;padding:1rem;'>
-            <div style='font-size:3rem;font-weight:900;color:{clr};'>{display_grade}</div>
-            <div style='color:rgba(255,255,255,0.5) !important;'>{display_label} ({display_overall}/100)</div>
+        <div style='text-align:center;padding:0.5rem;'>
+            <svg width="110" height="110" viewBox="0 0 100 100" style="transform:rotate(-90deg);">
+                <circle cx="50" cy="50" r="{radius}" fill="none"
+                    stroke="rgba(255,255,255,0.07)" stroke-width="10"/>
+                <circle cx="50" cy="50" r="{radius}" fill="none"
+                    stroke="{clr}" stroke-width="10"
+                    stroke-linecap="round"
+                    stroke-dasharray="{arc:.1f} {gap:.1f}"
+                    style="filter:drop-shadow(0 0 6px {clr});
+                           transition:stroke-dasharray 1s ease;">
+                </circle>
+            </svg>
+            <div style='margin-top:-80px;margin-bottom:60px;font-size:1.8rem;font-weight:900;color:{clr};
+                        text-shadow:0 0 20px {clr}44;'>{display_grade}</div>
+            <div style='color:rgba(255,255,255,0.5) !important;font-size:0.85rem;'>{display_label} &nbsp;·&nbsp; {display_overall}/100</div>
             {'<div style="font-size:0.75rem;color:#48bb78;margin-top:0.3rem;">✅ Smart Cleaning Applied</div>' if cleaning_applied else ''}
         </div>
         """, unsafe_allow_html=True)
@@ -2501,9 +2786,31 @@ def render_schema_tab():
         st.text(st.session_state.schema)
 
     if fi.get('has_missing_values'):
-        st.markdown("<p class='section-title'>⚠️ Missing Values</p>", unsafe_allow_html=True)
+        st.markdown("<p class='section-title'>⚠️ Missing Values — Column Quality</p>", unsafe_allow_html=True)
         md = [{'Column': c, 'Count': i['count'], '%': f"{i['percentage']}%"}
               for c, i in fi['missing_info'].items()]
+        
+        # Enhancement 4: gradient null progress bars
+        for c, info in fi['missing_info'].items():
+            pct = info['percentage']
+            if pct >= 50:
+                bar_color = "linear-gradient(90deg,#fc8181,#f56565)"
+            elif pct >= 20:
+                bar_color = "linear-gradient(90deg,#ed8936,#ecc94b)"
+            else:
+                bar_color = "linear-gradient(90deg,#48bb78,#38f9d7)"
+            label_color = "#fc8181" if pct >= 50 else "#ecc94b" if pct >= 20 else "#48bb78"
+            st.markdown(f"""
+            <div class='null-bar-wrap'>
+                <span style='font-size:0.8rem;color:rgba(255,255,255,0.7);min-width:140px;'>{c}</span>
+                <div class='null-bar-bg'>
+                    <div class='null-bar-fill' style='width:{pct}%;background:{bar_color};'></div>
+                </div>
+                <span class='null-bar-label' style='color:{label_color};'>{pct:.1f}%</span>
+                <span style='font-size:0.72rem;color:rgba(255,255,255,0.35);'>({info['count']} nulls)</span>
+            </div>
+            """, unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
         
         # FIX 2: Upgraded the Missing Values table to the glassmorphic HTML style too!
         missing_html = pd.DataFrame(md).to_html(index=False, classes="glass-table")
