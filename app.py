@@ -1081,6 +1081,151 @@ def load_css():
         box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6) !important;
         background: linear-gradient(135deg, #764ba2, #667eea) !important;
     }
+
+    /* ══════════════════════════════════════
+       FEATURE: AI TYPING INDICATOR
+       ══════════════════════════════════════ */
+    .typing-indicator {
+        display: inline-flex; align-items: center; gap: 0.8rem;
+        padding: 0.9rem 1.3rem;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 18px 18px 18px 4px;
+        margin: 0.6rem 0;
+    }
+    .typing-dots { display: flex; gap: 5px; align-items: center; }
+    .typing-dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: linear-gradient(135deg, #667eea, #a78bfa);
+        animation: typing-bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dot:nth-child(1) { animation-delay: 0s; }
+    .typing-dot:nth-child(2) { animation-delay: 0.22s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.44s; }
+    @keyframes typing-bounce {
+        0%,60%,100% { transform: translateY(0); opacity: 0.35; }
+        30% { transform: translateY(-9px); opacity: 1; }
+    }
+    .typing-label {
+        font-size: 0.78rem; color: rgba(255,255,255,0.4) !important;
+        font-style: italic; letter-spacing: 0.3px;
+    }
+
+    /* ══════════════════════════════════════
+       FEATURE: TOAST NOTIFICATION
+       ══════════════════════════════════════ */
+    .qm-toast {
+        position: fixed; bottom: 5.5rem; left: 50%; transform: translateX(-50%);
+        z-index: 99999; padding: 0.7rem 1.6rem; border-radius: 50px;
+        font-size: 0.85rem; font-weight: 600; letter-spacing: 0.3px;
+        backdrop-filter: blur(20px); pointer-events: none;
+        white-space: nowrap;
+        animation: toast-in 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    }
+    .qm-toast.success {
+        background: rgba(72,187,120,0.18); border: 1px solid rgba(72,187,120,0.5);
+        color: #48bb78 !important; box-shadow: 0 8px 32px rgba(72,187,120,0.2);
+    }
+    .qm-toast.info {
+        background: rgba(102,126,234,0.18); border: 1px solid rgba(102,126,234,0.5);
+        color: #a78bfa !important; box-shadow: 0 8px 32px rgba(102,126,234,0.2);
+    }
+    .qm-toast.warning {
+        background: rgba(237,137,54,0.18); border: 1px solid rgba(237,137,54,0.5);
+        color: #ed8936 !important; box-shadow: 0 8px 32px rgba(237,137,54,0.2);
+    }
+    @keyframes toast-in {
+        from { opacity: 0; transform: translateX(-50%) translateY(16px) scale(0.92); }
+        to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    }
+
+    /* ══════════════════════════════════════
+       FEATURE: CHAT AVATARS
+       ══════════════════════════════════════ */
+    .chat-row {
+        display: flex; align-items: flex-end; gap: 0.65rem;
+        margin: 0.5rem 0;
+    }
+    .chat-row.user-row { flex-direction: row-reverse; }
+    .chat-avatar {
+        width: 36px; height: 36px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1rem; flex-shrink: 0;
+    }
+    .chat-avatar.user-av {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+    }
+    .chat-avatar.bot-av {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .chat-bubble-wrap { flex: 1; max-width: calc(100% - 52px); }
+
+    /* ══════════════════════════════════════
+       FEATURE: LIVE TABLE SEARCH
+       ══════════════════════════════════════ */
+    .search-result-badge {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        padding: 0.25rem 0.8rem; border-radius: 50px;
+        background: rgba(102,126,234,0.12); border: 1px solid rgba(102,126,234,0.25);
+        font-size: 0.75rem; color: #a78bfa !important; font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    /* ══════════════════════════════════════
+       FEATURE: SCROLL-TO-TOP BUTTON
+       ══════════════════════════════════════ */
+    .qm-scroll-top {
+        position: fixed; bottom: 9.5rem; right: 2rem; z-index: 9998;
+        width: 42px; height: 42px; border-radius: 50%;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        backdrop-filter: blur(20px);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1rem; cursor: pointer;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+        color: rgba(255,255,255,0.5) !important;
+        animation: fab-pulse 3s ease-in-out infinite;
+    }
+    .qm-scroll-top:hover {
+        background: rgba(102,126,234,0.2);
+        border-color: rgba(102,126,234,0.5);
+        box-shadow: 0 8px 30px rgba(102,126,234,0.3);
+        transform: translateY(-2px);
+    }
+
+    /* ══════════════════════════════════════
+       FEATURE: CHART EXPORT BUTTONS
+       ══════════════════════════════════════ */
+    .chart-export-row {
+        display: flex; gap: 0.5rem; justify-content: flex-end;
+        margin-top: 0.3rem; margin-bottom: 0.5rem; flex-wrap: wrap;
+    }
+    .chart-export-btn {
+        display: inline-flex; align-items: center; gap: 0.3rem;
+        padding: 0.3rem 0.85rem; border-radius: 8px; font-size: 0.72rem; font-weight: 600;
+        background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+        color: rgba(255,255,255,0.5) !important; cursor: pointer;
+        transition: all 0.2s ease; text-decoration: none;
+    }
+    .chart-export-btn:hover {
+        background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.4);
+        color: #a78bfa !important;
+    }
+
+    /* ══════════════════════════════════════
+       FEATURE: DIM MODE OVERLAY
+       ══════════════════════════════════════ */
+    .dim-mode-overlay {
+        position: fixed; inset: 0; pointer-events: none; z-index: 9990;
+        background: rgba(0,0,0,0.42);
+        animation: dim-fade-in 0.4s ease forwards;
+    }
+    @keyframes dim-fade-in {
+        from { opacity: 0; } to { opacity: 1; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -1289,6 +1434,37 @@ def load_footer():
 # SESSION STATE
 # ─────────────────────────────────────────────
 
+def show_toast(message: str, kind: str = "success"):
+    """Inject a brief toast notification via HTML/JS (auto-dismisses after 3s)."""
+    _st_components.html(f"""
+    <script>
+    (function() {{
+        var doc = window.parent.document;
+        // Remove any existing toast
+        var old = doc.getElementById('qm-toast-el');
+        if (old) old.remove();
+        // Create new toast
+        var t = doc.createElement('div');
+        t.id = 'qm-toast-el';
+        t.className = 'qm-toast {kind}';
+        t.textContent = '{message}';
+        doc.body.appendChild(t);
+        setTimeout(function() {{
+            t.style.transition = 'opacity 0.4s, transform 0.4s';
+            t.style.opacity = '0';
+            t.style.transform = 'translateX(-50%) translateY(-10px) scale(0.95)';
+            setTimeout(function() {{ if(t.parentNode) t.parentNode.removeChild(t); }}, 420);
+        }}, 2800);
+    }})();
+    </script>
+    """, height=0)
+
+
+def inject_dim_mode():
+    """Inject a dim overlay when dim mode is active."""
+    if st.session_state.get('dim_mode', False):
+        st.markdown("<div class='dim-mode-overlay'></div>", unsafe_allow_html=True)
+
 def init_session_state():
     defaults = {
         'is_cleaning': False,
@@ -1313,6 +1489,7 @@ def init_session_state():
         'cleaning_report': None,   # before/after diff from generate_cleaning_report()
         'pdf_report': None,        # raw bytes of last generated PDF
         'pdf_report_name': None,   # filename for the download button
+        'dim_mode':           False,   # dim overlay toggle
         # ── Join feature (N-file pool) ────────────────────────────────────
         'extra_files':        [],     # list of {name, df, fi, size_mb}
         'join_candidates':    None,   # ranked list from detect_joinable_columns
@@ -1504,6 +1681,7 @@ def handle_file_upload(uploaded_file):
             generate_ai_summary()
 
         st.success(f"✅ Loaded {fi['num_rows']:,} rows × {fi['num_cols']} columns")
+        show_toast(f"✅ {uploaded_file.name} loaded — {fi['num_rows']:,} rows", "success")
         # Enhancement 8: Confetti burst on successful upload
         _st_components.html("""
         <script>
@@ -2118,6 +2296,7 @@ def render_dashboard():
         <div class='fab-tooltip'>⚡ Ask AI</div>
         <div class='fab-btn' id='qm-fab-btn' title='Open AI Chat'>⚡</div>
     </div>
+    <div class='qm-scroll-top' id='qm-scroll-top-btn' title='Scroll to top' onclick="window.parent.scrollTo({top:0,behavior:'smooth'})">↑</div>
     """, unsafe_allow_html=True)
 
     _st_components.html("""
@@ -2317,23 +2496,32 @@ def render_chat_section():
 
     if not st.session_state.chat_history:
         st.markdown("""
-        <div class='chat-bot-msg'>
-            <strong>🤖 QueryMind:</strong><br><br>
-            Neural Engine is online. I've analyzed your dataset and I'm ready to help. 
-            Ask me any question in plain English!
+        <div class='chat-row'>
+            <div class='chat-avatar bot-av'>🤖</div>
+            <div class='chat-bubble-wrap'>
+                <div class='chat-bot-msg'>
+                    <strong>QueryMind:</strong><br><br>
+                    Neural Engine is online. I've analyzed your dataset and I'm ready to help. 
+                    Ask me any question in plain English!
+                </div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
     else:
         for i, msg in enumerate(st.session_state.chat_history):
             ts = msg.get('timestamp', '')
             q_escaped = msg['question'].replace("'", "\\'").replace('"', '&quot;')
+            # User message with avatar
             st.markdown(f"""
-            <div class='chat-user-msg' id='umsg-{i}'>
-                <strong>You:</strong> {msg['question']}
-            </div>
-            <div class='chat-meta chat-meta-user'>
-                <span>{ts}</span>
-                <span class='copy-chip' onclick="navigator.clipboard.writeText('{q_escaped}')">📋 Copy</span>
+            <div class='chat-row user-row' id='umsg-{i}'>
+                <div class='chat-avatar user-av'>🧑</div>
+                <div class='chat-bubble-wrap'>
+                    <div class='chat-user-msg'><strong>You:</strong> {msg['question']}</div>
+                    <div class='chat-meta chat-meta-user'>
+                        <span>{ts}</span>
+                        <span class='copy-chip' onclick="navigator.clipboard.writeText('{q_escaped}')">📋 Copy</span>
+                    </div>
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -2345,12 +2533,17 @@ def render_chat_section():
                 if msg.get('explanation'):
                     ans_escaped = msg['explanation'].replace("'", "\\'")[:200].replace('"', '&quot;')
                     st.markdown(f"""
-                    <div class='chat-bot-msg' id='bmsg-{i}'>
-                        <strong>🤖 QueryMind:</strong><br>{msg['explanation']}
-                    </div>
-                    <div class='chat-meta'>
-                        <span>{ts}</span>
-                        <span class='copy-chip' onclick="navigator.clipboard.writeText('{ans_escaped}...')">📋 Copy</span>
+                    <div class='chat-row' id='bmsg-{i}'>
+                        <div class='chat-avatar bot-av'>🤖</div>
+                        <div class='chat-bubble-wrap'>
+                            <div class='chat-bot-msg'>
+                                <strong>QueryMind:</strong><br>{msg['explanation']}
+                            </div>
+                            <div class='chat-meta'>
+                                <span>{ts}</span>
+                                <span class='copy-chip' onclick="navigator.clipboard.writeText('{ans_escaped}...')">📋 Copy</span>
+                            </div>
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -2414,14 +2607,21 @@ def process_question(question):
     # Recovery is handled below: if execute_sql_query fails with a connection
     # error, we reload once and retry rather than pre-loading every time.
 
-    # Enhancement 1: Show shimmer skeleton before the spinner
-    shimmer_placeholder = st.empty()
-    shimmer_placeholder.markdown("""
-    <div class='skeleton-block'>
-        <div class='skeleton-title'></div>
-        <div class='skeleton-line long'></div>
-        <div class='skeleton-line medium'></div>
-        <div class='skeleton-line short'></div>
+    # AI Typing Indicator — show animated dots before spinner
+    typing_placeholder = st.empty()
+    typing_placeholder.markdown("""
+    <div class='chat-row'>
+        <div class='chat-avatar bot-av'>🤖</div>
+        <div class='chat-bubble-wrap'>
+            <div class='typing-indicator'>
+                <div class='typing-dots'>
+                    <div class='typing-dot'></div>
+                    <div class='typing-dot'></div>
+                    <div class='typing-dot'></div>
+                </div>
+                <span class='typing-label'>QueryMind is thinking…</span>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2507,7 +2707,7 @@ def process_question(question):
         if len(st.session_state.chat_history) > config.MAX_CHAT_HISTORY:
             st.session_state.chat_history = st.session_state.chat_history[-config.MAX_CHAT_HISTORY:]
 
-    shimmer_placeholder.empty()  # Enhancement 1: clear skeleton
+    typing_placeholder.empty()  # Clear AI typing indicator
 
 
 def get_chat_context():
@@ -2756,6 +2956,19 @@ def render_visual_analytics_tab():
                 </div>
                 """, unsafe_allow_html=True)
                 st.plotly_chart(charts[i]['fig'], use_container_width=True)
+                # Chart Export Button
+                try:
+                    img_bytes = charts[i]['fig'].to_image(format="png", scale=2)
+                    st.download_button(
+                        label="📥 Export PNG",
+                        data=img_bytes,
+                        file_name=f"chart_{i+1}_{charts[i]['title'][:20].replace(' ','_')}.png",
+                        mime="image/png",
+                        use_container_width=True,
+                        key=f"export_chart_{i}",
+                    )
+                except Exception:
+                    pass
             
             # Right Column Chart (if it exists)
             if i + 1 < len(charts):
@@ -2767,6 +2980,19 @@ def render_visual_analytics_tab():
                     </div>
                     """, unsafe_allow_html=True)
                     st.plotly_chart(charts[i+1]['fig'], use_container_width=True)
+                    # Chart Export Button
+                    try:
+                        img_bytes_r = charts[i+1]['fig'].to_image(format="png", scale=2)
+                        st.download_button(
+                            label="📥 Export PNG",
+                            data=img_bytes_r,
+                            file_name=f"chart_{i+2}_{charts[i+1]['title'][:20].replace(' ','_')}.png",
+                            mime="image/png",
+                            use_container_width=True,
+                            key=f"export_chart_{i+1}",
+                        )
+                    except Exception:
+                        pass
                     
             st.markdown("<br>", unsafe_allow_html=True)
 
@@ -2775,19 +3001,44 @@ def render_preview_tab():
     df = st.session_state.df
     if df is None: return
 
+    # ── Live Table Search ──
+    search_query = st.text_input(
+        "🔍 Search rows",
+        placeholder="Type to filter rows across all columns…",
+        label_visibility="collapsed",
+        key="preview_search"
+    )
+
+    if search_query.strip():
+        mask = df.astype(str).apply(
+            lambda col: col.str.contains(search_query, case=False, na=False)
+        ).any(axis=1)
+        df_filtered = df[mask]
+        match_count = len(df_filtered)
+        st.markdown(
+            f"<div class='search-result-badge'>🔍 {match_count:,} row{'s' if match_count!=1 else ''} matched <b>\"{search_query}\"</b></div>",
+            unsafe_allow_html=True
+        )
+    else:
+        df_filtered = df
+
     c1, c2 = st.columns([3, 1])
     with c1:
-        n = st.slider("Rows", 5, min(100, len(df)), 10, 5)
+        n = st.slider("Rows", 5, min(100, max(5, len(df_filtered))), min(10, max(5, len(df_filtered))), 5)
     with c2:
         st.markdown("<br>", unsafe_allow_html=True)
         show_t = st.checkbox("Show types")
 
     # FIX 1: Convert the main data preview table to the glassmorphic HTML style
     # We wrap it in a div with overflow-x: auto so wide tables scroll smoothly left/right!
-    html_table = df.head(n).to_html(index=False, classes="glass-table")
+    html_table = df_filtered.head(n).to_html(index=False, classes="glass-table")
     st.markdown(f'<div style="overflow-x: auto; padding-bottom: 10px;">{html_table}</div>', unsafe_allow_html=True)
-    
-    st.caption(f"Showing {n} of {len(df):,}")
+
+    total_rows = len(df_filtered)
+    caption_text = f"Showing {min(n, total_rows)} of {total_rows:,}"
+    if search_query.strip():
+        caption_text += f" filtered rows (total dataset: {len(df):,})"
+    st.caption(caption_text)
 
     if show_t:
         dt = pd.DataFrame({
@@ -3148,6 +3399,7 @@ def render_settings_tab():
         if st.button("🗑️ Clear Chat", use_container_width=True, key="clear_chat_btn"):
             st.session_state.chat_history = []
             st.session_state.query_count = 0
+            show_toast("🗑️ Chat cleared", "info")
             st.rerun()
     with c2:
         if st.button("🔄 Upload New File", use_container_width=True, key="upload_new_btn"):
@@ -3158,6 +3410,35 @@ def render_settings_tab():
             with st.spinner("Generating..."):
                 generate_ai_summary()
                 st.rerun()
+
+    # ── Dim Mode Toggle ──────────────────────────────────────────────────────
+    st.divider()
+    st.markdown("<p class='section-title'>🌙 Display Mode</p>", unsafe_allow_html=True)
+    _dim_col1, _dim_col2 = st.columns([3, 1])
+    with _dim_col1:
+        st.markdown("""
+        <div style='padding:0.8rem 1rem;background:rgba(26,26,62,0.5);border:1px solid rgba(102,126,234,0.2);
+                    border-radius:12px;'>
+            <div style='color:#e2e8f0;font-weight:500;font-size:0.92rem;'>🌙 Dim Mode</div>
+            <div style='color:#718096;font-size:0.78rem;margin-top:3px;'>
+                Reduces screen brightness with a dark overlay. Useful in low-light environments.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    with _dim_col2:
+        _dim_on = st.session_state.get('dim_mode', False)
+        if st.button(
+            "🌑 ON" if _dim_on else "☀️ OFF",
+            key="dim_mode_toggle_btn",
+            use_container_width=True,
+            help="Toggle dim mode overlay"
+        ):
+            st.session_state.dim_mode = not _dim_on
+            show_toast(
+                "🌙 Dim mode enabled" if not _dim_on else "☀️ Dim mode disabled",
+                "info"
+            )
+            st.rerun()
 
 # ─────────────────────────────────────────────
 # JOIN TAB HELPERS
@@ -3867,6 +4148,7 @@ def main():
     load_css()
     load_animated_bg()
     init_session_state()
+    inject_dim_mode()
 
     if not st.session_state.llm_ready:
         initialize_llm()
