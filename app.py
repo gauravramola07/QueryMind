@@ -1265,6 +1265,88 @@ def generate_ai_summary():
 # ─────────────────────────────────────────────
 
 def render_welcome():
+    # ── Slide-Up Multi Text Animation ──
+    st.markdown("""
+    <style>
+    .slideup-section {
+        text-align: center;
+        margin: 1.2rem auto 2rem auto;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        font-size: 1.05rem;
+        color: rgba(255,255,255,0.45);
+        font-weight: 500;
+        letter-spacing: 0.5px;
+    }
+    .slideup-static {
+        color: rgba(255,255,255,0.35);
+        font-weight: 400;
+        white-space: nowrap;
+    }
+    .slideup-track {
+        display: inline-block;
+        height: 1.6em;
+        overflow: hidden;
+        position: relative;
+        vertical-align: middle;
+        min-width: 200px;
+    }
+    .slideup-track span {
+        display: block;
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        font-weight: 700;
+        font-size: 1.1rem;
+        background: linear-gradient(135deg, #667eea, #a78bfa, #f093fb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        opacity: 0;
+        transform: translateY(50px);
+        animation: su-cycle 12.5s ease-in-out infinite;
+        filter: drop-shadow(0 0 8px rgba(102,126,234,0.4));
+    }
+    .slideup-track span:nth-child(1) { animation-delay: 0s;    }
+    .slideup-track span:nth-child(2) { animation-delay: 2.5s;  }
+    .slideup-track span:nth-child(3) { animation-delay: 5s;    }
+    .slideup-track span:nth-child(4) { animation-delay: 7.5s;  }
+    .slideup-track span:nth-child(5) { animation-delay: 10s;   }
+
+    @keyframes su-cycle {
+        0%   { opacity: 0; transform: translateY(50px);  }
+        8%   { opacity: 1; transform: translateY(0);     }
+        20%  { opacity: 1; transform: translateY(0);     }
+        28%  { opacity: 0; transform: translateY(-50px); }
+        100% { opacity: 0; transform: translateY(-50px); }
+    }
+
+    /* Animated dots separator */
+    .slideup-dot {
+        width: 4px; height: 4px; border-radius: 50%;
+        background: rgba(102,126,234,0.5);
+        display: inline-block;
+        animation: dot-pulse 1.5s ease-in-out infinite alternate;
+    }
+    @keyframes dot-pulse { from { opacity: 0.3; } to { opacity: 1; } }
+    </style>
+
+    <div class="slideup-section">
+        <span class="slideup-static">QueryMind helps you</span>
+        <span class="slideup-dot"></span>
+        <div class="slideup-track">
+            <span>Analyze Instantly</span>
+            <span>Visualize Trends</span>
+            <span>Predict Outcomes</span>
+            <span>Discover Insights</span>
+            <span>Drive Decisions</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     col1, col2, col3 = st.columns(3)
     features = [
         ("💬", "Natural Language Queries", "Ask questions in plain English. No SQL or coding required."),
