@@ -172,11 +172,36 @@ def load_css():
     }
     .feature-premium {
         background: rgba(255,255,255,0.04); backdrop-filter: blur(15px);
-        border: 1px solid rgba(255,255,255,0.06); border-radius: 22px;
-        padding: 2.5rem 1.5rem; text-align: center; transition: all 0.4s;
+        border-radius: 22px; padding: 2.5rem 1.5rem; text-align: center;
+        transition: all 0.4s; position: relative; overflow: hidden;
+        border: 1px solid transparent;
+        background-clip: padding-box;
     }
-    .feature-premium:hover { transform: translateY(-8px); border-color: rgba(102,126,234,0.3); }
-    .feat-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
+    .feature-premium::before {
+        content: '';
+        position: absolute; inset: -1px; border-radius: 23px; z-index: -1; padding: 1px;
+        background: conic-gradient(from var(--angle, 0deg),
+            rgba(102,126,234,0) 0%, rgba(102,126,234,0.6) 25%,
+            rgba(167,139,250,0.8) 50%, rgba(240,147,251,0.6) 75%, rgba(102,126,234,0) 100%);
+        animation: spin-border 4s linear infinite;
+        opacity: 0;
+        transition: opacity 0.4s;
+        -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor; mask-composite: exclude;
+    }
+    .feature-premium:hover::before { opacity: 1; }
+    .feature-premium:hover { transform: translateY(-8px); box-shadow: 0 20px 60px rgba(102,126,234,0.2); }
+    @property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+    @keyframes spin-border { to { --angle: 360deg; } }
+    .feat-icon {
+        font-size: 3rem; display: block; margin-bottom: 1rem;
+        filter: drop-shadow(0 0 12px rgba(102,126,234,0.5));
+        transition: transform 0.4s, filter 0.4s;
+    }
+    .feature-premium:hover .feat-icon {
+        transform: scale(1.15) translateY(-4px);
+        filter: drop-shadow(0 0 20px rgba(167,139,250,0.7));
+    }
     .feat-title { font-size: 1.1rem; font-weight: 700; color: #f7fafc !important; margin: 0.5rem 0; }
     .feat-desc { font-size: 0.85rem; color: rgba(255,255,255,0.4) !important; line-height: 1.6; }
 
@@ -1074,6 +1099,23 @@ def render_header():
     # Includes the Futuristic Glowing Core AI Brain SVG
     st.markdown("""
     <div class='hero-section'>
+        <!-- Floating micro-orbs -->
+        <div style="position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:0;">
+            <div style="position:absolute;width:6px;height:6px;border-radius:50%;background:rgba(102,126,234,0.6);top:15%;left:8%;animation:micro-float 6s ease-in-out infinite;box-shadow:0 0 12px rgba(102,126,234,0.8);"></div>
+            <div style="position:absolute;width:4px;height:4px;border-radius:50%;background:rgba(167,139,250,0.7);top:30%;right:10%;animation:micro-float 8s ease-in-out infinite 1s;box-shadow:0 0 10px rgba(167,139,250,0.8);"></div>
+            <div style="position:absolute;width:5px;height:5px;border-radius:50%;background:rgba(240,147,251,0.5);top:70%;left:15%;animation:micro-float 7s ease-in-out infinite 2s;box-shadow:0 0 10px rgba(240,147,251,0.7);"></div>
+            <div style="position:absolute;width:3px;height:3px;border-radius:50%;background:rgba(79,172,254,0.7);top:55%;right:12%;animation:micro-float 9s ease-in-out infinite 0.5s;box-shadow:0 0 8px rgba(79,172,254,0.9);"></div>
+            <div style="position:absolute;width:5px;height:5px;border-radius:50%;background:rgba(67,233,123,0.5);top:80%;left:5%;animation:micro-float 5s ease-in-out infinite 3s;box-shadow:0 0 10px rgba(67,233,123,0.6);"></div>
+            <div style="position:absolute;width:4px;height:4px;border-radius:50%;background:rgba(254,225,64,0.4);top:20%;right:5%;animation:micro-float 10s ease-in-out infinite 1.5s;box-shadow:0 0 8px rgba(254,225,64,0.6);"></div>
+        </div>
+        <style>
+        @keyframes micro-float {
+            0%,100% { transform: translateY(0) scale(1); opacity: 0.6; }
+            33%      { transform: translateY(-18px) scale(1.3); opacity: 1; }
+            66%      { transform: translateY(8px) scale(0.8); opacity: 0.4; }
+        }
+        .hero-section { position: relative; }
+        </style>
         <div class='hero-logo'>
             <svg width="140" height="140" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                 <defs>
@@ -1363,6 +1405,123 @@ def render_welcome():
             </div>
             """, unsafe_allow_html=True)
 
+    # ── Animated Stats Row ──
+    st.markdown("""
+    <style>
+    .stats-row {
+        display: flex; justify-content: center; align-items: center;
+        gap: 0; margin: 1.8rem auto 0.5rem auto; max-width: 780px;
+        background: rgba(255,255,255,0.03); backdrop-filter: blur(20px);
+        border: 1px solid rgba(255,255,255,0.07); border-radius: 20px;
+        padding: 1.2rem 2rem; flex-wrap: wrap;
+    }
+    .stat-item {
+        flex: 1; text-align: center; min-width: 120px;
+        animation: stat-fadein 0.8s ease both;
+    }
+    .stat-item:nth-child(1) { animation-delay: 0.1s; }
+    .stat-item:nth-child(3) { animation-delay: 0.25s; }
+    .stat-item:nth-child(5) { animation-delay: 0.4s; }
+    .stat-item:nth-child(7) { animation-delay: 0.55s; }
+    @keyframes stat-fadein {
+        from { opacity: 0; transform: translateY(16px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    .stat-num {
+        font-size: 1.6rem; font-weight: 900; letter-spacing: -1px;
+        background: linear-gradient(135deg, #667eea, #a78bfa, #f093fb);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        background-clip: text; line-height: 1;
+        filter: drop-shadow(0 0 8px rgba(102,126,234,0.4));
+    }
+    .stat-lbl {
+        font-size: 0.72rem; color: rgba(255,255,255,0.35) !important;
+        text-transform: uppercase; letter-spacing: 1.2px;
+        font-weight: 600; margin-top: 0.3rem;
+    }
+    .stat-divider {
+        width: 1px; height: 36px;
+        background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.12), transparent);
+    }
+
+    /* ── Tech Pills ── */
+    .tech-pills-wrap {
+        display: flex; justify-content: center; flex-wrap: wrap;
+        gap: 0.55rem; margin: 1.8rem auto 0.5rem; max-width: 680px;
+    }
+    .tech-pill {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        padding: 0.38rem 0.9rem; border-radius: 50px; font-size: 0.78rem;
+        font-weight: 600; letter-spacing: 0.4px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.09);
+        color: rgba(255,255,255,0.55) !important;
+        position: relative; overflow: hidden;
+        transition: all 0.3s ease;
+        animation: pill-popin 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    .tech-pill:nth-child(1){animation-delay:0.05s}
+    .tech-pill:nth-child(2){animation-delay:0.10s}
+    .tech-pill:nth-child(3){animation-delay:0.15s}
+    .tech-pill:nth-child(4){animation-delay:0.20s}
+    .tech-pill:nth-child(5){animation-delay:0.25s}
+    .tech-pill:nth-child(6){animation-delay:0.30s}
+    .tech-pill:nth-child(7){animation-delay:0.35s}
+    .tech-pill:nth-child(8){animation-delay:0.40s}
+    @keyframes pill-popin {
+        from { opacity:0; transform: scale(0.7); }
+        to   { opacity:1; transform: scale(1); }
+    }
+    .tech-pill::after {
+        content: ''; position: absolute;
+        top: 0; left: -75%; width: 50%; height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+        animation: pill-shimmer 3s ease-in-out infinite;
+    }
+    .tech-pill:nth-child(2)::after { animation-delay: 0.4s; }
+    .tech-pill:nth-child(3)::after { animation-delay: 0.8s; }
+    .tech-pill:nth-child(4)::after { animation-delay: 1.2s; }
+    .tech-pill:nth-child(5)::after { animation-delay: 1.6s; }
+    .tech-pill:nth-child(6)::after { animation-delay: 2.0s; }
+    .tech-pill:nth-child(7)::after { animation-delay: 2.4s; }
+    .tech-pill:nth-child(8)::after { animation-delay: 2.8s; }
+    @keyframes pill-shimmer {
+        0%   { left: -75%; }
+        100% { left: 125%; }
+    }
+    .tech-pill:hover {
+        background: rgba(102,126,234,0.15);
+        border-color: rgba(102,126,234,0.4);
+        color: #a78bfa !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102,126,234,0.2);
+    }
+    .pill-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+    </style>
+
+    <div class="stats-row">
+        <div class="stat-item">
+            <div class="stat-num">1M+</div>
+            <div class="stat-lbl">Rows Supported</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+            <div class="stat-num">50+</div>
+            <div class="stat-lbl">Chart Types</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+            <div class="stat-num">10x</div>
+            <div class="stat-lbl">Faster Insights</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+            <div class="stat-num">0</div>
+            <div class="stat-lbl">SQL Required</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ── Upload Zone Text & Icon ──
@@ -1376,6 +1535,21 @@ def render_welcome():
             Supports CSV and Excel files (up to 200MB)
         </div>
     </div>
+    """, unsafe_allow_html=True)
+
+    # ── Tech Pills ──
+    st.markdown("""
+    <div class="tech-pills-wrap">
+        <span class="tech-pill"><span class="pill-dot" style="background:#48bb78"></span>CSV</span>
+        <span class="tech-pill"><span class="pill-dot" style="background:#4facfe"></span>Excel / XLSX</span>
+        <span class="tech-pill"><span class="pill-dot" style="background:#a78bfa"></span>SQL Engine</span>
+        <span class="tech-pill"><span class="pill-dot" style="background:#f093fb"></span>Natural Language</span>
+        <span class="tech-pill"><span class="pill-dot" style="background:#fa709a"></span>Auto Charts</span>
+        <span class="tech-pill"><span class="pill-dot" style="background:#fee140"></span>KPI Detection</span>
+        <span class="tech-pill"><span class="pill-dot" style="background:#43e97b"></span>Data Cleaning</span>
+        <span class="tech-pill"><span class="pill-dot" style="background:#00f2fe"></span>PDF Reports</span>
+    </div>
+    <br>
     """, unsafe_allow_html=True)
 
     uploaded = st.file_uploader("Upload", type=['csv', 'xlsx', 'xls'], label_visibility="collapsed")
