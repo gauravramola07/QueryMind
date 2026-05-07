@@ -44,7 +44,7 @@ from components.chart_generator import (
 from utils.helpers import (
     detect_column_categories, generate_smart_schema,
     generate_smart_suggestions, get_data_health_score,
-    format_dataframe_for_display, should_show_chart
+    format_dataframe_for_display
 )
 
 # ─────────────────────────────────────────────
@@ -2777,10 +2777,22 @@ def process_question(question):
         result_df = exec_r['dataframe']
 
         figure = None
-        if should_show_chart(result_df, question):
-            cr = generate_chart(result_df, question, st.session_state.chart_type)
-            if cr['success']:
-                figure = cr['figure']
+        # ── BUG FIX: Replaced should_show_chart() which was too restrictive ──
+        # Now we generate a chart whenever the result has ≥1 numeric column,
+        # covering all analytical queries (category-wise, payment-wise, etc.)
+        try:
+            if result_df is not None and not result_df.empty:
+                numeric_cols = result_df.select_dtypes(include=[np.number]).columns.tolist()
+                if len(numeric_cols) >= 1:
+                    chart_type = st.session_state.get('chart_type', 'auto')
+                    cr = generate_chart(result_df, question, chart_type)
+                    if cr['success']:
+                        figure = cr['figure']
+                    else:
+                        print(f"⚠️ Chart skipped: {cr.get('error', 'unknown reason')}")
+        except Exception as _chart_err:
+            print(f"⚠️ Chart generation error: {_chart_err}")
+            figure = None
 
         insight = None
         if not result_df.empty:
