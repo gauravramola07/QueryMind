@@ -207,11 +207,11 @@ def clean_dataframe(df):
     ]   
     
     # Handle duplicate column names
-    cols = pd.Series(df.columns)
-    for dup in cols[cols.duplicated()].unique():
-        dup_idx = cols[cols == dup].index.tolist()
-        for i, idx in enumerate(dup_idx):
-            if i > 0:
+    cols = list(df.columns)
+    for dup in set(cols):
+        if cols.count(dup) > 1:
+            idxs = [i for i, c in enumerate(cols) if c == dup]
+            for i, idx in enumerate(idxs[1:], 1):
                 cols[idx] = f"{dup}_{i}"
     df.columns = cols
     
@@ -260,8 +260,8 @@ def generate_file_info(df, file_name, file_size, file_extension):
     
     # ── Column type analysis ──────────────────
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    text_cols = df.select_dtypes(include=['object']).columns.tolist()
-    date_cols = df.select_dtypes(include=['datetime64']).columns.tolist()
+    text_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    date_cols = df.select_dtypes(include=['datetime', 'datetime64[ns]', 'datetime64[ns, tz]']).columns.tolist()
     bool_cols = df.select_dtypes(include=['bool']).columns.tolist()
     
     # ── Missing value analysis ────────────────

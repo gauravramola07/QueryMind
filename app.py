@@ -8,7 +8,6 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import streamlit as st
-import streamlit.components.v1 as _st_components
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -3650,10 +3649,10 @@ def render_join_tab():
             return "{}"
         try:
             res = generate_text_response(
-                question=prompt, 
-                schema="Multi-File Schema Analysis", 
-                context="Generating AI Join Plan", 
-                llm_model=st.session_state.llm_model
+                question=prompt,
+                schema="Multi-File Schema Analysis",
+                data_context="Generating AI Join Plan",
+                model=st.session_state.llm_model
             )
             return res.get('response', '{}') if isinstance(res, dict) else str(res)
         except Exception:
@@ -4034,10 +4033,10 @@ def render_refinement_tab():
                         def clean_llm_caller(prompt):
                             from components.llm_engine import generate_text_response
                             res = generate_text_response(
-                                question=prompt, 
-                                schema="Data Cleaning Context", 
-                                context="Infer missing value", 
-                                llm_model=st.session_state.llm_model
+                                question=prompt,
+                                schema="Data Cleaning Context",
+                                data_context="Infer missing value",
+                                model=st.session_state.llm_model
                             )
                             return res.get('response', 'Unknown') if isinstance(res, dict) else str(res)
 

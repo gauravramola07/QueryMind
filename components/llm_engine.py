@@ -114,14 +114,12 @@ def call_groq(prompt, system_prompt=None):
 
     except Exception as e:
         error_msg = str(e).lower()
-        
-        # ── ATTEMPT 2: Fallback if Rate Limited (429) ──
         if '429' in error_msg or 'rate limit' in error_msg:
             print(f"⚠️ Primary model {primary_model} rate limited. Switching to fallback {fallback_model}...")
             try:
                 chat_completion_fallback = _groq_client.chat.completions.create(
                     messages=messages,
-                    model=fallback_model, # Using the backup model!
+                    model=fallback_model,
                     temperature=config.TEMPERATURE,
                     max_tokens=config.MAX_TOKENS,
                 )
@@ -130,7 +128,6 @@ def call_groq(prompt, system_prompt=None):
                 print(f"❌ Fallback API error: {str(fallback_error)}")
                 raise fallback_error
         else:
-            # If it's a different kind of error (like no internet), raise it normally
             print(f"❌ Groq API error: {str(e)}")
             raise e
 

@@ -308,10 +308,10 @@ Respond ONLY with valid JSON, no extra text, no markdown fences:
         raw = llm_fn(prompt)
         parsed = _extract_json(raw)
         if isinstance(parsed, dict) and "best_left" in parsed:
-            # Validate the columns exist
-            if parsed["best_left"] not in df1.columns:
+            # Validate the columns exist and are not None/empty
+            if not parsed.get("best_left") or parsed["best_left"] not in df1.columns:
                 parsed["best_left"] = fallback["best_left"]
-            if parsed["best_right"] not in df2.columns:
+            if not parsed.get("best_right") or parsed["best_right"] not in df2.columns:
                 parsed["best_right"] = fallback["best_right"]
             if parsed.get("join_type") not in ("inner", "left", "right", "outer"):
                 parsed["join_type"] = "left"

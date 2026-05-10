@@ -16,9 +16,7 @@ PROJECT_VERSION = "1.0.0"
 PROJECT_DESCRIPTION = "AI-Powered Business Intelligence Chatbot"
 AUTHOR = "Your Name"  # ← Change this to your name
 
-# ── API CONFIGURATION ─────────────────────────
-# ── API CONFIGURATION ─────────────────────────
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+# ── LLM SETTINGS ──────────────────────────────
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 # ── LLM PROVIDER ──────────────────────────────
@@ -31,7 +29,7 @@ MAX_TOKENS = 2048
 TEMPERATURE = 0.1                  # Low = more precise/deterministic
 
 # ── DATA SETTINGS ─────────────────────────────
-MAX_FILE_SIZE_MB = 50              # Maximum upload file size
+MAX_FILE_SIZE_MB = 200              # Maximum upload file size (aligned with UI)
 MAX_ROWS_PREVIEW = 5               # Rows to show in data preview
 MAX_ROWS_QUERY = 10000             # Max rows to process in query
 SUPPORTED_FORMATS = [".csv", ".xlsx", ".xls"]
@@ -73,6 +71,9 @@ SAMPLE_QUESTIONS = [
     "What is the average value by group?",
     "Identify any outliers in the data",
 ]
+
+# ── DATA CLEANING SETTINGS ───────────────────
+MAX_AI_IMPUTE_NULLS = 50              # Max nulls for AI imputation
 
 # ── COLOR SCHEME ──────────────────────────────
 COLORS = {

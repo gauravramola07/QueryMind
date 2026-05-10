@@ -1,6 +1,11 @@
 import pandas as pd
 import numpy as np
 import json
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
 
 def auto_clean_data(df, llm_fn=None):
     new_df = df.copy()
@@ -185,9 +190,9 @@ def ai_smart_impute(df, llm_fn):
         return new_df  # Nothing to impute
 
     # Limit to a maximum number of rows to avoid massive API delays/costs
-    # We will only AI-impute if there are fewer than 50 missing rows total
+    # We will only AI-impute if there are fewer than MAX_AI_IMPUTE_NULLS missing rows total
     total_nulls = sum(new_df[col].isnull().sum() for col in text_cols_with_nulls)
-    if total_nulls > 50:
+    if total_nulls > config.MAX_AI_IMPUTE_NULLS:
         # Fallback to rule-based if there's too much missing data
         for col in text_cols_with_nulls:
             new_df[col] = new_df[col].fillna("Unknown")

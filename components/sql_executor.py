@@ -267,7 +267,7 @@ def clean_sql_query(sql_query):
 # ─────────────────────────────────────────────
 
 def is_query_safe(sql_query):
-    """Only allow SELECT queries"""
+    """Only allow SELECT queries with validated column names"""
 
     query_upper = sql_query.upper().strip()
 
@@ -287,6 +287,21 @@ def is_query_safe(sql_query):
             return {
                 'safe': False,
                 'reason': f"Keyword '{kw}' not allowed."
+            }
+
+    # Validate column names don't contain SQL injection patterns
+    # Only allow alphanumeric characters, underscores, and common SQL identifiers
+    identifier_pattern = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
+    # Extract potential identifiers from the query (column/table references)
+    potential_identifiers = re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', sql_query)
+
+    # Block dangerous identifiers that could be SQL injection
+    for identifier in potential_identifiers:
+        if not identifier_pattern.match(identifier):
+            return {
+                'safe': False,
+                'reason': f"Invalid identifier format: '{identifier}'"
             }
 
     return {'safe': True, 'reason': 'Safe'}

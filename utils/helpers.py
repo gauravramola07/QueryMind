@@ -7,6 +7,7 @@
 import pandas as pd
 import numpy as np
 import os
+import re
 import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -69,10 +70,15 @@ def detect_column_categories(df):
                 continue
         
         # ── Numeric columns ────────────────────
-        if dtype in ['int64', 'float64', 'int32', 'float32']:
+        if pd.api.types.is_numeric_dtype(df[col].dtype):
             categories['numeric_columns'].append(col)
             continue
-        
+
+        # ── Categorical columns ─────────────────
+        if pd.api.types.is_categorical_dtype(df[col].dtype):
+            categories['categorical_columns'].append(col)
+            continue
+
         # ── Categorical vs Text ────────────────
         if dtype == 'object':
             if unique_ratio < 0.1:  # Less than 10% unique = categorical
@@ -136,7 +142,7 @@ def detect_business_kpis(df, column_categories):
         col_lower = col.lower()
         
         for keyword, kpi_info in kpi_keywords.items():
-            if keyword in col_lower:
+            if re.search(rf'\b{re.escape(keyword)}\b', col_lower):
                 # Calculate the KPI value
                 try:
                     if kpi_info['agg'] == 'SUM':
@@ -211,7 +217,7 @@ def format_kpi_value(value, format_type):
         else:
             return str(round(value, 2))
     
-    except:
+    except Exception:
         return str(value)
 
 
@@ -320,7 +326,9 @@ def generate_smart_schema(df, file_info, column_categories):
     
     if column_categories['categorical_columns']:
         lines.append(f"  7. Group by these for categories: {', '.join(column_categories['categorical_columns'])}")
-    
+
+    # SQLite date compatibility note
+    lines.append(f"  8. For date operations, use strftime() instead of date functions (SQLite limitation)")
     lines.append("=" * 60)
     
     return "\n".join(lines)
