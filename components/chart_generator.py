@@ -1905,7 +1905,9 @@ def create_forecast_chart(df: pd.DataFrame, question: str):
             return None
         col    = num_cols[0]
         n      = min(80, len(df))
-        y      = df[col].head(n).fillna(method='ffill').values
+        # BUG FIX: fillna(method='ffill') is deprecated in pandas 2.2+.
+        # Use .ffill() directly instead.
+        y      = df[col].head(n).ffill().values
         x_num  = np.arange(n)
         # Fit simple linear trend
         coeffs = np.polyfit(x_num, y, 1)
@@ -2287,8 +2289,11 @@ def create_nightingale(df: pd.DataFrame, question: str):
             r=r_vals, theta=theta, width=[width] * n,
             marker=dict(color=EXTENDED_COLORS[:n], opacity=0.8,
                         line=dict(color='rgba(0,0,0,0.4)', width=1)),
-            customdata=d[val_col].tolist(),
-            hovertemplate='<b>%{customdata2}</b><br>Value: %{customdata:,.0f}<extra></extra>',
+            # BUG FIX: %{customdata2} is not a valid Plotly hovertemplate token.
+            # Pass a 2D array as customdata: col 0 = label, col 1 = original value.
+            # Access them with %{customdata[0]} and %{customdata[1]}.
+            customdata=list(zip(labels, d[val_col].tolist())),
+            hovertemplate='<b>%{customdata[0]}</b><br>Value: %{customdata[1]:,.0f}<extra></extra>',
         ))
         # Add labels manually
         for i, (t, lbl) in enumerate(zip(theta, labels)):

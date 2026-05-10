@@ -2739,6 +2739,9 @@ def process_question(question):
                 'timestamp': datetime.now().strftime("%H:%M")
             })
             st.session_state.query_count += 1
+            # BUG FIX: typing indicator must be cleared before every early return,
+            # otherwise the animated dots remain visible on screen indefinitely.
+            typing_placeholder.empty()
             return
 
         if not llm_r['success']:
@@ -2748,6 +2751,7 @@ def process_question(question):
                 'result_df': None, 'figure': None, 'insight': None,
                 'timestamp': datetime.now().strftime("%H:%M")
             })
+            typing_placeholder.empty()  # BUG FIX: clear typing indicator
             return
 
         sql = llm_r['sql_query']
@@ -2772,6 +2776,7 @@ def process_question(question):
                 'result_df': None, 'figure': None, 'insight': None,
                 'timestamp': datetime.now().strftime("%H:%M")
             })
+            typing_placeholder.empty()  # BUG FIX: clear typing indicator
             return
 
         result_df = exec_r['dataframe']
@@ -3568,14 +3573,43 @@ def _build_merged_fi(merged_df, name: str) -> dict:
     for col in merged_df.columns:
         nc  = int(merged_df[col].isnull().sum())
         pct = round(nc / len(merged_df) * 100, 2) if len(merged_df) else 0.0
-        col_details.append({
+
+        # BUG FIX: 'type' must be the human-readable category ('Numeric',
+        # 'Text', 'Date/Time', 'Boolean', 'Other') — not the raw dtype string
+        # ('int64', 'object'). render_schema_tab() and generate_smart_schema()
+        # both do  `if c['type'] == 'Numeric':` comparisons that silently fail
+        # when given a raw dtype string.
+        col_dtype = merged_df[col].dtype
+        if pd.api.types.is_numeric_dtype(col_dtype):
+            col_type = 'Numeric'
+        elif pd.api.types.is_datetime64_any_dtype(col_dtype):
+            col_type = 'Date/Time'
+        elif pd.api.types.is_bool_dtype(col_dtype):
+            col_type = 'Boolean'
+        elif isinstance(col_dtype, pd.CategoricalDtype) or col_dtype == object:
+            col_type = 'Text'
+        else:
+            col_type = 'Other'
+
+        col_entry = {
             "name":           col,
-            "type":           str(merged_df[col].dtype),
+            "type":           col_type,
             "non_null_count": int(merged_df[col].count()),
             "null_count":     nc,
             "unique_count":   int(merged_df[col].nunique()),
             "percentage":     pct,
-        })
+        }
+
+        # Add numeric stats so the schema tab can display Min/Max/Mean
+        if col_type == 'Numeric':
+            col_entry['min']  = round(float(merged_df[col].min()), 2) if not pd.isna(merged_df[col].min()) else None
+            col_entry['max']  = round(float(merged_df[col].max()), 2) if not pd.isna(merged_df[col].max()) else None
+            col_entry['mean'] = round(float(merged_df[col].mean()), 2) if not pd.isna(merged_df[col].mean()) else None
+        elif col_type == 'Text':
+            top_values = merged_df[col].value_counts().head(5).to_dict()
+            col_entry['top_values'] = {str(k): int(v) for k, v in top_values.items()}
+
+        col_details.append(col_entry)
         if nc > 0:
             missing_info[col] = {"count": nc, "percentage": pct}
 
@@ -4058,9 +4092,22 @@ def render_refinement_tab():
                         new_fi['column_details'] = []
                         for col in cleaned_df.columns:
                             null_count = int(cleaned_df[col].isnull().sum())
+                            # BUG FIX (same as _build_merged_fi): 'type' must be
+                            # the human-readable category, not the raw dtype string.
+                            _dtype = cleaned_df[col].dtype
+                            if pd.api.types.is_numeric_dtype(_dtype):
+                                _col_type = 'Numeric'
+                            elif pd.api.types.is_datetime64_any_dtype(_dtype):
+                                _col_type = 'Date/Time'
+                            elif pd.api.types.is_bool_dtype(_dtype):
+                                _col_type = 'Boolean'
+                            elif isinstance(_dtype, pd.CategoricalDtype) or _dtype == object:
+                                _col_type = 'Text'
+                            else:
+                                _col_type = 'Other'
                             new_fi['column_details'].append({
                                 'name':           col,
-                                'type':           str(cleaned_df[col].dtype),
+                                'type':           _col_type,
                                 'non_null_count':  int(cleaned_df[col].count()),
                                 'null_count':     null_count,
                                 'unique_count':   int(cleaned_df[col].nunique()),

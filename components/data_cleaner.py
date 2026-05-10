@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import json
 import os
+import re
 import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -226,7 +227,12 @@ Example output: ["Electronics", "Unknown", "Furniture"]"""
             raw_response = llm_fn(prompt).strip()
 
             # Strip markdown fences the LLM may add (```json ... ```)
-            raw_response = raw_response.strip("```").replace("json", "", 1).strip()
+            # BUG FIX: str.strip() takes a character set, not a substring.
+            # "foo".strip("```") strips the '`' character from both ends, which
+            # fails when the response has leading whitespace before the fence.
+            # Use regex substitution to correctly remove the fences.
+            raw_response = re.sub(r'^```(?:json)?\s*', '', raw_response.strip())
+            raw_response = re.sub(r'\s*```$', '', raw_response).strip()
 
             guesses = json.loads(raw_response)
 

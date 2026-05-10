@@ -37,9 +37,15 @@ except ImportError:
 _KALEIDO_AVAILABLE = False
 try:
     import plotly.io as _pio
+    import plotly.graph_objects as _probe_go
+    # BUG FIX: simply importing plotly.io always succeeds even when kaleido
+    # is not installed. Probe with a tiny dummy figure so the flag only becomes
+    # True when PNG export will actually work at runtime.
+    _pio.to_image(_probe_go.Figure(), format='png', width=10, height=10)
     _KALEIDO_AVAILABLE = True
-except ImportError:
-    pass
+    del _probe_go
+except Exception:
+    _KALEIDO_AVAILABLE = False
 
 # ── Page dimensions ───────────────────────────────────────────────────────────
 PW, PH = A4           # 595.27 x 841.89 pts

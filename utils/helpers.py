@@ -75,7 +75,9 @@ def detect_column_categories(df):
             continue
 
         # ── Categorical columns ─────────────────
-        if pd.api.types.is_categorical_dtype(df[col].dtype):
+        # BUG FIX: pd.api.types.is_categorical_dtype() was removed in pandas 2.2.
+        # Use isinstance(dtype, pd.CategoricalDtype) instead.
+        if isinstance(df[col].dtype, pd.CategoricalDtype):
             categories['categorical_columns'].append(col)
             continue
 
