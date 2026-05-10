@@ -126,7 +126,7 @@ def generate_cleaning_report(df_before, df_after):
             actions.append(f"Type converted: {dtype_before} → {dtype_after}")
 
         # Detect if negatives were corrected (abs applied)
-        if np.issubdtype(before_series.dtype, np.number):
+        if pd.api.types.is_numeric_dtype(before_series.dtype):
             had_negatives = bool((before_series.dropna() < 0).any())
             has_negatives = bool((after_series.dropna() < 0).any())
             if had_negatives and not has_negatives:

@@ -204,7 +204,7 @@ def clean_dataframe(df):
     df.columns = [
         col if col.strip() else f"col_{i}"
         for i, col in enumerate(df.columns)
-    ]   
+    ]
     
     # Handle duplicate column names
     cols = list(df.columns)
@@ -261,7 +261,7 @@ def generate_file_info(df, file_name, file_size, file_extension):
     # ── Column type analysis ──────────────────
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     text_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    date_cols = df.select_dtypes(include=['datetime', 'datetime64[ns]', 'datetime64[ns, tz]']).columns.tolist()
+    date_cols = df.select_dtypes(include=['datetime', 'datetime64[ns]', 'datetimetz']).columns.tolist()
     bool_cols = df.select_dtypes(include=['bool']).columns.tolist()
     
     # ── Missing value analysis ────────────────
