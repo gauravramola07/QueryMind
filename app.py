@@ -1423,7 +1423,7 @@ def load_footer():
             </p>
             <span class="footer-badge">
                 <span class="footer-badge-dot"></span>
-                v2.0 Live
+                v1.0 Live
             </span>
         </div>
     </div>
