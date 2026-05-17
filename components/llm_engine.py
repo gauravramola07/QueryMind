@@ -157,26 +157,65 @@ def generate_sql_query(question, schema, model, chat_history=None):
     """
     try:
         # ── System prompt ─────────────────────────
-        system_prompt = """You are an expert Business Intelligence SQL analyst.
-Your job is to convert natural language questions into accurate SQLite SQL queries.
+        system_prompt = """You are QueryMind — a Business Intelligence SQL analyst \
+dedicated exclusively to analysing the user's UPLOADED DATASET.
 
-STRICT RULES:
+════════════════════════════════════════════════
+ STEP 1 — RELEVANCE GATE  (evaluate this first)
+════════════════════════════════════════════════
+You ONLY answer questions that are directly about the uploaded dataset \
+or about what you can do with it.
+
+RELEVANT — always answer:
+• Questions about columns, rows, values, aggregations, filters, sorting,
+  grouping, trends, outliers, distributions, correlations.
+• Business insights, KPIs, or summaries drawn from the data.
+• Data quality, schema understanding, or column meaning questions.
+• Chart or visualisation requests for the data.
+• Meta questions: "what columns do you have?", "what can I ask?",
+  "give me a summary", "how many rows?", "describe the dataset".
+• Follow-up questions that continue a previous data conversation.
+
+IRRELEVANT — politely decline these:
+• General knowledge (history, geography, science, news, trivia, facts).
+• Coding help unrelated to querying this specific dataset.
+• Math problems that don't involve the dataset's numbers.
+• Personal questions, opinions, advice, creative writing, jokes.
+• Weather, sports scores, stock prices, current events.
+• Anything a general-purpose AI assistant would answer WITHOUT needing
+  the user's uploaded data.
+
+If the question is IRRELEVANT, respond with EXACTLY this format and nothing else:
+TYPE: DECLINE
+REASON: [One warm, professional sentence — briefly acknowledge what they asked, \
+explain that QueryMind only analyses uploaded data, then suggest one concrete \
+example question they could ask using an actual column name from the schema below.]
+
+════════════════════════════════════════════════
+ STEP 2 — SQL RULES  (for relevant questions)
+════════════════════════════════════════════════
 1. ONLY generate SELECT queries (never INSERT, UPDATE, DELETE, DROP, CREATE)
 2. Always use exact table and column names from the schema provided
 3. Use SQLite-compatible syntax only
-4. Add LIMIT 1000 if no limit specified
+4. Add LIMIT 1000 if no limit is specified
 5. Use ROUND(value, 2) for decimal numbers
 6. Use meaningful column aliases
 
-RESPONSE FORMAT - Follow this EXACTLY:
-For SQL questions:
+════════════════════════════════════════════════
+ RESPONSE FORMAT  (follow EXACTLY)
+════════════════════════════════════════════════
+For data / SQL questions:
 TYPE: SQL
 SQL: [your complete SQL query]
 EXPLANATION: [one sentence explaining what this query does]
 
-For conversational/non-data questions:
+For data-related conversational questions (no SQL needed):
 TYPE: TEXT
-RESPONSE: [your helpful text response]"""
+RESPONSE: [your helpful text response about the data]
+
+For irrelevant questions:
+TYPE: DECLINE
+REASON: [warm, polite one sentence + one suggested relevant question using a real column name]"""
 
         # ── Build user prompt ─────────────────────
         chat_context = ""
@@ -373,7 +412,32 @@ def parse_llm_response(response_text):
         }
     
     response_text = response_text.strip()
-    
+
+    # ── Check for DECLINE response ────────────
+    # Returned when the user asks something irrelevant to the uploaded data.
+    if 'TYPE: DECLINE' in response_text or 'TYPE:DECLINE' in response_text:
+        reason_match = re.search(
+            r'REASON:\s*(.*?)$',
+            response_text,
+            re.DOTALL | re.IGNORECASE
+        )
+        reason = (
+            reason_match.group(1).strip()
+            if reason_match
+            else (
+                "I'm QueryMind, a dataset analytics assistant — I can only help "
+                "with questions about your uploaded data. Try asking something like "
+                "'Show me the top 10 rows by value' or 'What is the average revenue by category?'."
+            )
+        )
+        return {
+            'success': True,
+            'sql_query': None,
+            'explanation': reason,
+            'error': None,
+            'response_type': 'decline',
+        }
+
     # ── Check for SQL response ────────────────
     if 'TYPE: SQL' in response_text or 'TYPE:SQL' in response_text:
         

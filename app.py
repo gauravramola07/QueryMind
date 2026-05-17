@@ -339,6 +339,36 @@ def load_css():
         border-radius: 18px 18px 18px 4px; margin: 0.6rem 0; max-width: 85%; font-size: 0.9rem;
     }
     .chat-bot-msg * { color: #e2e8f0 !important; }
+
+    /* ── Polite Decline Card ─────────────────────────────────────────── */
+    .chat-decline-card {
+        background: rgba(237, 137, 54, 0.07);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(237, 137, 54, 0.30);
+        border-left: 4px solid #ed8936;
+        padding: 0.9rem 1.2rem;
+        border-radius: 0 18px 18px 0;
+        margin: 0.6rem 0;
+        max-width: 85%;
+    }
+    .chat-decline-header {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-bottom: 0.5rem;
+    }
+    .chat-decline-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #ed8936 !important;
+    }
+    .chat-decline-body {
+        font-size: 0.88rem;
+        line-height: 1.65;
+        color: #fbd38d !important;
+    }
     .section-title {
         font-family: 'Space Grotesk', sans-serif !important;
         font-size: 1rem; font-weight: 700; color: #a78bfa !important;
@@ -2630,7 +2660,28 @@ def render_chat_section():
                     with st.expander("🔍 SQL Generated", expanded=False):
                         st.code(msg['sql_query'], language='sql')
 
-                if msg.get('explanation'):
+                # ── Polite decline card (irrelevant question) ────────────
+                if msg.get('response_type') == 'decline':
+                    st.markdown(f"""
+                    <div class='chat-row' id='bmsg-{i}'>
+                        <div class='chat-avatar bot-av'>🤖</div>
+                        <div class='chat-bubble-wrap'>
+                            <div class='chat-decline-card'>
+                                <div class='chat-decline-header'>
+                                    <span>⚠️</span>
+                                    <span class='chat-decline-label'>Outside My Scope</span>
+                                </div>
+                                <div class='chat-decline-body'>{msg['explanation']}</div>
+                            </div>
+                            <div class='chat-meta'>
+                                <span>{ts}</span>
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # ── Normal bot explanation bubble ────────────────────────
+                elif msg.get('explanation'):
                     ans_escaped = msg['explanation'].replace("'", "\\'")[:200].replace('"', '&quot;')
                     st.markdown(f"""
                     <div class='chat-row' id='bmsg-{i}'>
@@ -2741,6 +2792,20 @@ def process_question(question):
             st.session_state.query_count += 1
             # BUG FIX: typing indicator must be cleared before every early return,
             # otherwise the animated dots remain visible on screen indefinitely.
+            typing_placeholder.empty()
+            return
+
+        # ── Irrelevant question — show polite decline ─────────────────────
+        if llm_r['response_type'] == 'decline':
+            st.session_state.chat_history.append({
+                'question': question, 'response_type': 'decline',
+                'sql_query': None, 'explanation': llm_r['explanation'],
+                'result_df': None, 'figure': None, 'insight': None,
+                'timestamp': datetime.now().strftime("%H:%M")
+            })
+            # Declined questions do not count toward query_count — they
+            # consume no analytical quota and keeping the counter clean
+            # helps the user track their real data queries.
             typing_placeholder.empty()
             return
 
